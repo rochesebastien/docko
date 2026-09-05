@@ -10,8 +10,6 @@ const APPS = {
   slack:    { label: 'Slack',            icon: 'slack.svg',    bg: '#ffffff' },
   linear:   { label: 'Linear',           icon: 'linear.svg',   bg: '#111111', inv: true },
   openai:   { label: 'ChatGPT',          icon: 'openai.svg',   bg: '#ffffff' },
-  xcode:    { label: 'Xcode',            icon: 'xcode.svg',    full: true },
-  vscode:   { label: 'Visual Studio Code', icon: 'vscode.svg', bg: '#1f6fe5' },
   github:   { label: 'GitHub Desktop',   icon: 'github.svg',   bg: '#ffffff' },
   figma:    { label: 'Figma',            icon: 'figma.svg',    bg: '#1e1e1e' },
   notion:   { label: 'Notion',           icon: 'notion.svg',   bg: '#ffffff' },
@@ -28,17 +26,17 @@ const PROFILES = [
   {
     name: 'Travail',
     color: '#6d7cff',
-    items: ['arc', 'slack', 'linear', 'notion', null, 'openai', 'xcode', 'vscode', 'github'],
+    items: ['arc', 'slack', 'linear', 'notion', 'openai', 'github'],
   },
   {
     name: 'Perso',
     color: '#ef5da8',
-    items: ['safari', 'spotify', 'discord', null, 'obsidian', 'claude'],
+    items: ['safari', 'spotify', 'discord', 'obsidian', 'claude'],
   },
   {
     name: 'Création',
     color: '#f59e0b',
-    items: ['chrome', 'figma', 'cursor', 'claude', null, 'spotify'],
+    items: ['chrome', 'figma', 'cursor', 'claude', 'spotify'],
   },
 ];
 
@@ -86,12 +84,6 @@ function buildDock(profile) {
   const frag = document.createDocumentFragment();
   let i = 0;
   for (const key of profile.items) {
-    if (key === null) {
-      const spacer = document.createElement('div');
-      spacer.className = 'dock-spacer';
-      frag.appendChild(spacer);
-      continue;
-    }
     const item = document.createElement('div');
     item.className = 'dock-item';
     item.style.setProperty('--i', i++);
@@ -170,7 +162,8 @@ function renderMenu() {
     btn.innerHTML =
       `<span class="dd-check">✓</span>` +
       `<span class="dd-swatch" style="background:${p.color}"></span>` +
-      `<span class="dd-name">${p.name}</span>`;
+      `<span class="dd-name">${p.name}</span>` +
+      `<span class="dd-key">⌘${index + 1}</span>`;
     btn.addEventListener('click', () => {
       stopAutoDemo();
       select(index);
@@ -180,7 +173,15 @@ function renderMenu() {
   });
 }
 
+function positionMenu() {
+  // Aligne le bord droit du menu sous l'item Docko de la barre.
+  const right = demo.clientWidth - (statusBtn.offsetLeft + statusBtn.offsetWidth);
+  dropdown.style.right = `${Math.max(8, right)}px`;
+}
+window.addEventListener('resize', positionMenu);
+
 function openMenu() {
+  positionMenu();
   dropdown.hidden = false;
   statusBtn.setAttribute('aria-expanded', 'true');
 }
@@ -201,6 +202,11 @@ document.addEventListener('click', (e) => {
 });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeMenu();
+});
+
+document.getElementById('dd-manage').addEventListener('click', () => {
+  stopAutoDemo();
+  closeMenu();
 });
 
 toggleName.addEventListener('change', () => {

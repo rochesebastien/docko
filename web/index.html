@@ -36,7 +36,7 @@
 <main>
   <section class="hero">
     <div class="container">
-      <h1>Un Dock différent<br class="br-wide">pour chaque moment.</h1>
+      <h1>Un Dock différent<br class="br-wide"> pour chaque moment.</h1>
       <p class="lead">Enregistre plusieurs Docks. Change en un clic depuis la barre des&nbsp;menus.</p>
       <div class="cta">
         <a class="btn btn-primary" href="https://github.com/rochesebastien/docko-clodo/releases/latest" target="_blank" rel="noopener">Télécharger pour Mac</a>
@@ -48,19 +48,40 @@
     <div class="container demo-wrap">
       <div class="demo" id="demo">
         <div class="menubar">
-          <img src="assets/icons/apple.svg" alt="" class="mb-apple invert">
-          <button class="mb-status" id="status-btn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="dropdown">
-            <img src="assets/icon-docko.png" alt="" class="mb-status-icon invert">
-            <span id="status-name">Travail</span>
-          </button>
+          <div class="mb-left">
+            <img src="assets/icons/apple.svg" alt="" class="mb-apple invert">
+            <span class="mb-menu mb-menu-app">Finder</span>
+            <span class="mb-menu">Fichier</span>
+            <span class="mb-menu">Édition</span>
+            <span class="mb-menu">Présentation</span>
+            <span class="mb-menu">Aller</span>
+            <span class="mb-menu">Fenêtre</span>
+            <span class="mb-menu">Aide</span>
+          </div>
+          <div class="mb-right">
+            <button class="mb-status" id="status-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="dropdown">
+              <img src="assets/icon-docko.png" alt="" class="mb-status-icon invert">
+              <span id="status-name">Travail</span>
+            </button>
+            <svg class="mb-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19.5l2.6-3.2a3.6 3.6 0 0 0-5.2 0L12 19.5zM6.4 12.9a8.2 8.2 0 0 1 11.2 0l1.7-2.1a10.9 10.9 0 0 0-14.6 0l1.7 2.1zM2.4 8.2a14.2 14.2 0 0 1 19.2 0L23.3 6a16.9 16.9 0 0 0-22.6 0l1.7 2.2zM8.6 15.6a5.4 5.4 0 0 1 6.8 0l1.7-2.1a8.1 8.1 0 0 0-10.2 0l1.7 2.1z" fill="currentColor"/></svg>
+            <svg class="mb-glyph mb-battery" viewBox="0 0 30 14" aria-hidden="true"><rect x="0.75" y="0.75" width="24.5" height="12.5" rx="3.5" fill="none" stroke="currentColor" stroke-opacity="0.45" stroke-width="1.5"/><rect x="2.5" y="2.5" width="18" height="9" rx="2" fill="currentColor"/><path d="M27 4.5v5a2.6 2.6 0 0 0 0-5z" fill="currentColor" fill-opacity="0.45"/></svg>
+            <svg class="mb-glyph" viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="7" rx="3.5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="16.5" cy="7.5" r="2" fill="currentColor"/><rect x="2" y="13" width="20" height="7" rx="3.5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="7.5" cy="16.5" r="2" fill="currentColor"/></svg>
+            <span class="mb-clock" id="clock">lun. 5 sept.&nbsp;&nbsp;14:32</span>
+          </div>
         </div>
 
-        <div class="dropdown" id="dropdown" hidden>
+        <div class="dropdown" id="dropdown" role="menu" hidden>
           <div class="dd-header">Profils</div>
-          <div id="dd-list" role="listbox" aria-label="Profils"></div>
+          <div id="dd-list" role="group" aria-label="Profils"></div>
           <div class="dd-sep"></div>
-          <label class="dd-toggle">
-            <span>Afficher le nom dans la barre</span>
+          <button class="dd-item dd-action" id="dd-manage" type="button" role="menuitem">
+            <span class="dd-check"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zm8.3 3.5a8 8 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a8 8 0 0 0-2.1-1.2L15.5 3h-4l-.4 2.7a8 8 0 0 0-2.1 1.2l-2.3-1-2 3.4 2 1.5a8 8 0 0 0 0 2.4l-2 1.5 2 3.4 2.3-1a8 8 0 0 0 2.1 1.2l.4 2.7h4l.4-2.7a8 8 0 0 0 2.1-1.2l2.3 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z" fill="currentColor"/></svg></span>
+            <span class="dd-name">Gérer les profils…</span>
+            <span class="dd-key">⌘,</span>
+          </button>
+          <label class="dd-item dd-toggle">
+            <span class="dd-check"></span>
+            <span class="dd-name">Afficher le nom dans la barre</span>
             <input type="checkbox" id="toggle-name" checked>
             <span class="switch" aria-hidden="true"></span>
           </label>
