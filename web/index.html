@@ -3,17 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Docko — Un Dock pour chaque contexte</title>
+  <title>Docko — Un Dock différent pour chaque moment</title>
   <meta name="description" content="Docko enregistre plusieurs Docks macOS et te laisse en changer en un clic depuis la barre des menus. Gratuit, open source, sans compte.">
-  <meta property="og:title" content="Docko — Un Dock pour chaque contexte">
+  <meta property="og:title" content="Docko — Un Dock différent pour chaque moment">
   <meta property="og:description" content="Enregistre plusieurs Docks. Change en un clic depuis la barre des menus.">
   <meta property="og:type" content="website">
-  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)">
-  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#0a0a0a">
+  <link rel="icon" href="assets/icon-docko.png" type="image/png">
+  <link rel="apple-touch-icon" href="assets/docko-macos.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -21,13 +21,14 @@
 <header class="nav">
   <div class="container nav-inner">
     <a class="brand" href="#" aria-label="Docko, accueil">
-      <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="15" rx="3.5" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="6" y="13" width="3" height="3" rx="0.8" fill="currentColor"/><rect x="10.5" y="13" width="3" height="3" rx="0.8" fill="currentColor"/><rect x="15" y="13" width="3" height="3" rx="0.8" fill="currentColor"/></svg>
-      <span>Docko</span>
+      <img src="assets/docko-title.png" alt="Docko" class="brand-logo">
     </a>
-    <nav class="nav-links">
-      <a href="#how">Fonctionnement</a>
-      <a href="#faq">FAQ</a>
-      <a href="https://github.com/rochesebastien/docko-clodo" target="_blank" rel="noopener">GitHub</a>
+    <nav class="nav-right">
+      <a class="icon-btn" href="https://github.com/rochesebastien/docko-clodo" target="_blank" rel="noopener" aria-label="Voir le dépôt GitHub" title="GitHub">
+        <img src="assets/icons/github.svg" alt="" class="invert">
+      </a>
+      <a class="nav-link" href="#features">Fonctionnalités</a>
+      <a class="btn btn-primary btn-sm" href="https://github.com/rochesebastien/docko-clodo/releases/latest" target="_blank" rel="noopener">Télécharger</a>
     </nav>
   </div>
 </header>
@@ -35,128 +36,101 @@
 <main>
   <section class="hero">
     <div class="container">
-      <p class="eyebrow">Pour macOS 13 et plus récent</p>
-      <h1>Un Dock pour chaque&nbsp;contexte.</h1>
+      <h1>Un Dock différent<br class="br-wide">pour chaque moment.</h1>
       <p class="lead">Enregistre plusieurs Docks. Change en un clic depuis la barre des&nbsp;menus.</p>
       <div class="cta">
-        <a class="btn btn-primary" href="https://github.com/rochesebastien/docko-clodo/releases/latest" target="_blank" rel="noopener">
-          Télécharger pour Mac
-        </a>
-        <a class="btn btn-ghost" href="https://github.com/rochesebastien/docko-clodo" target="_blank" rel="noopener">Voir le code</a>
+        <a class="btn btn-primary" href="https://github.com/rochesebastien/docko-clodo/releases/latest" target="_blank" rel="noopener">Télécharger pour Mac</a>
+        <a class="btn btn-ghost" href="https://github.com/rochesebastien/docko-clodo" target="_blank" rel="noopener">Voir sur GitHub</a>
       </div>
-      <p class="fineprint">Gratuit et open source · Aucun compte · Tout reste sur ton Mac</p>
+      <p class="fineprint">Gratuit et open source · macOS 13 ou plus récent</p>
     </div>
 
     <div class="container demo-wrap">
-      <div class="demo" id="demo" aria-label="Démonstration interactive : choisis un profil pour changer le Dock">
+      <div class="demo" id="demo">
         <div class="menubar">
-          <div class="menubar-left">
-            <span class="mb-item mb-strong">Finder</span>
-            <span class="mb-item">Fichier</span>
-            <span class="mb-item">Édition</span>
-            <span class="mb-item">Présentation</span>
-            <span class="mb-item">Aller</span>
-          </div>
-          <div class="menubar-right">
-            <span class="mb-status" id="status-item" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="14" height="14"><rect x="2.5" y="4.5" width="19" height="15" rx="3.5" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="6" y="13" width="3" height="3" rx="0.8" fill="currentColor"/><rect x="10.5" y="13" width="3" height="3" rx="0.8" fill="currentColor"/><rect x="15" y="13" width="3" height="3" rx="0.8" fill="currentColor"/></svg>
-              <span id="status-name">Travail</span>
-            </span>
-            <span class="mb-item mb-time">14:32</span>
-          </div>
+          <img src="assets/icons/apple.svg" alt="" class="mb-apple invert">
+          <button class="mb-status" id="status-btn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="dropdown">
+            <img src="assets/icon-docko.png" alt="" class="mb-status-icon invert">
+            <span id="status-name">Travail</span>
+          </button>
         </div>
 
-        <div class="dropdown" role="listbox" aria-label="Profils" id="dropdown">
-          <!-- rempli par main.js -->
+        <div class="dropdown" id="dropdown" hidden>
+          <div class="dd-header">Profils</div>
+          <div id="dd-list" role="listbox" aria-label="Profils"></div>
+          <div class="dd-sep"></div>
+          <label class="dd-toggle">
+            <span>Afficher le nom dans la barre</span>
+            <input type="checkbox" id="toggle-name" checked>
+            <span class="switch" aria-hidden="true"></span>
+          </label>
         </div>
 
         <div class="desktop">
-          <div class="dock" id="dock" aria-live="polite">
-            <!-- rempli par main.js -->
-          </div>
+          <div class="dock" id="dock"></div>
         </div>
       </div>
-      <p class="demo-hint">Clique sur un profil. Le Dock change, tes apps ouvertes ne bougent pas.</p>
     </div>
   </section>
 
-  <section class="section" id="how">
+  <section class="section" id="features">
     <div class="container">
-      <h2>Comment ça marche</h2>
-      <div class="steps">
-        <article class="step">
-          <span class="step-num">01</span>
-          <h3>Construis ton Dock</h3>
-          <p>Enregistre le Dock actuel en un clic, ou compose-le à la main : apps, espaceurs, ordre. Donne-lui un nom et une couleur.</p>
+      <h2>Ce que fait Docko.</h2>
+      <p class="section-lead">Le Dock que tu veux, quand tu le veux. Sans toucher au reste.</p>
+      <div class="features">
+        <article class="feature">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><rect x="6.5" y="12" width="3" height="3" rx="0.8" fill="currentColor" stroke="none"/><rect x="10.5" y="12" width="3" height="3" rx="0.8" fill="currentColor" stroke="none"/><rect x="14.5" y="12" width="3" height="3" rx="0.8" fill="currentColor" stroke="none"/></svg>
+          </div>
+          <h3>Compose ton Dock</h3>
+          <p>Enregistre le Dock actuel en un clic, ou compose-le à la main. Apps, espaceurs, ordre, nom et couleur.</p>
         </article>
-        <article class="step">
-          <span class="step-num">02</span>
+        <article class="feature">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16M13 5l7 7-7 7"/></svg>
+          </div>
           <h3>Change en un clic</h3>
-          <p>Le profil s'applique depuis la barre des menus, ou avec ⌘1 à ⌘9. Docko n'ouvre ni ne ferme aucune application.</p>
+          <p>Depuis la barre des menus ou avec ⌘1 à ⌘9. Le Dock change, tes apps ouvertes ne bougent pas.</p>
         </article>
-        <article class="step">
-          <span class="step-num">03</span>
-          <h3>Automatise avec un mode de concentration</h3>
-          <p>Relie un profil à un mode de concentration via Raccourcis et l'URL <code>docko://apply?name=Travail</code>. Le Dock suit ton contexte.</p>
+        <article class="feature">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a7 7 0 0 0-7 7c0 3 2 4.5 3 6h8c1-1.5 3-3 3-6a7 7 0 0 0-7-7z"/><path d="M9.5 20h5"/></svg>
+          </div>
+          <h3>Suis tes modes de concentration</h3>
+          <p>Relie un profil à un mode de concentration via Raccourcis et l'URL <code>docko://apply?name=Travail</code>.</p>
+        </article>
+        <article class="feature">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+          </div>
+          <h3>Ne touche à rien d'autre</h3>
+          <p>Dossiers, apps récentes, taille, position, agrandissement : tes réglages du Dock restent tels quels. Aucun compte, tout reste sur ton Mac.</p>
         </article>
       </div>
     </div>
   </section>
 
-  <section class="section section-tight">
-    <div class="container">
-      <ul class="features">
-        <li>
-          <h3>Ne touche à rien d'autre</h3>
-          <p>Dossiers, apps récentes, taille, position, agrandissement : tes réglages du Dock restent tels quels.</p>
-        </li>
-        <li>
-          <h3>Sans compte, sans cloud</h3>
-          <p>Les profils vivent dans un fichier JSON sur ton Mac. Exporte-les pour les retrouver sur une autre machine.</p>
-        </li>
-        <li>
-          <h3>Invisible quand tu n'en as pas besoin</h3>
-          <p>Une icône dans la barre des menus, pas d'icône dans le Dock. Lancement au démarrage optionnel.</p>
-        </li>
-        <li>
-          <h3>Open source</h3>
-          <p>Swift et AppKit, sans dépendance. Le code est lisible en une soirée et le binaire se construit avec <code>make</code>.</p>
-        </li>
-      </ul>
-    </div>
-  </section>
-
-  <section class="section" id="faq">
+  <section class="section" id="about">
     <div class="container container-narrow">
-      <h2>Questions fréquentes</h2>
-      <details>
-        <summary>Qu'est-ce qu'un profil enregistre exactement ?</summary>
-        <p>Les applications épinglées et les espaceurs, dans l'ordre. Les dossiers, les apps récentes et les préférences du Dock ne sont ni enregistrés ni modifiés.</p>
-      </details>
-      <details>
-        <summary>Est-ce que changer de profil ferme mes applications ?</summary>
-        <p>Non. Docko réécrit uniquement la liste des apps épinglées puis relance le processus Dock. Tes fenêtres et tes apps ouvertes restent en place.</p>
-      </details>
-      <details>
-        <summary>Comment fonctionne la bascule automatique ?</summary>
-        <p>macOS n'offre pas d'API publique pour les modes de concentration. Docko expose donc un schéma d'URL. Une automatisation Raccourcis « À l'activation du mode Travail » qui ouvre <code>docko://apply?name=Travail</code> suffit.</p>
-      </details>
-      <details>
-        <summary>Pourquoi l'app n'est-elle pas sur le Mac App Store ?</summary>
-        <p>Écrire les préférences du Dock est incompatible avec le sandbox exigé par l'App Store. Docko se distribue donc directement, comme les outils du même genre.</p>
-      </details>
-      <details>
-        <summary>Quelle version de macOS ?</summary>
-        <p>macOS 13 Ventura ou plus récent, sur Mac Intel et Apple Silicon.</p>
-      </details>
-    </div>
-  </section>
-
-  <section class="section section-cta">
-    <div class="container">
-      <h2>Un Dock qui suit ce que tu fais.</h2>
-      <div class="cta">
-        <a class="btn btn-primary" href="https://github.com/rochesebastien/docko-clodo/releases/latest" target="_blank" rel="noopener">Télécharger pour Mac</a>
+      <h2>À propos de Docko.</h2>
+      <p class="section-lead">Ce que Docko modifie, où il enregistre tes profils, et quels Macs sont pris en charge.</p>
+      <div class="faq">
+        <details>
+          <summary>Qu'est-ce que Docko enregistre ?</summary>
+          <p>Les applications épinglées et les espaceurs, dans l'ordre. Les dossiers, les apps récentes et les préférences du Dock ne sont ni enregistrés ni modifiés.</p>
+        </details>
+        <details>
+          <summary>Que deviennent mes apps ouvertes ?</summary>
+          <p>Rien. Docko réécrit uniquement la liste des apps épinglées puis relance le processus Dock. Tes fenêtres et tes apps ouvertes restent en place.</p>
+        </details>
+        <details>
+          <summary>Faut-il un compte ?</summary>
+          <p>Non. Les profils vivent dans un fichier JSON dans ta bibliothèque. Tu peux les exporter et les importer sur un autre Mac.</p>
+        </details>
+        <details>
+          <summary>Quelles versions de macOS sont prises en charge ?</summary>
+          <p>macOS 13 Ventura ou plus récent, sur Mac Intel et Apple Silicon.</p>
+        </details>
       </div>
     </div>
   </section>
@@ -164,13 +138,15 @@
 
 <footer class="footer">
   <div class="container footer-inner">
-    <span>© <span id="year">2026</span> Docko</span>
-    <nav>
+    <p class="footer-req">macOS 13 ou plus récent</p>
+    <nav class="footer-links">
       <a href="https://github.com/rochesebastien/docko-clodo" target="_blank" rel="noopener">GitHub</a>
-      <a href="https://github.com/rochesebastien/docko-clodo/issues" target="_blank" rel="noopener">Signaler un bug</a>
       <a href="https://github.com/rochesebastien/docko-clodo/blob/main/README.md" target="_blank" rel="noopener">Documentation</a>
+      <a href="https://github.com/rochesebastien/docko-clodo/issues" target="_blank" rel="noopener">Signaler un bug</a>
     </nav>
+    <p class="footer-copy">© <span id="year">2026</span> Docko · Fait par <a href="https://github.com/rochesebastien" target="_blank" rel="noopener">Sébastien</a></p>
   </div>
+  <div class="footer-mark" aria-hidden="true">Docko</div>
 </footer>
 
 <script src="main.js" defer></script>
