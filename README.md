@@ -6,7 +6,8 @@ Un profil enregistre les **apps épinglées** et les **espaceurs** du Dock. Comm
 
 ## Fonctionnalités
 
-- Icône dans la barre des menus, sans icône dans le Dock. Un clic sur un profil l'applique (⌘1 à ⌘9 quand le menu est ouvert).
+- Icône dans la barre des menus, sans icône dans le Dock. Un clic sur un profil l'applique.
+- Raccourcis globaux en séquence : ⌘D puis la touche du profil (1 à 9 par défaut), depuis n'importe quelle app. Déclencheur et touches modifiables dans Réglages…
 - Enregistrer le Dock actuel comme nouveau profil, ou mettre à jour le profil actif depuis le Dock actuel.
 - Fenêtre de gestion : renommer, colorer, réordonner les apps par glisser-déposer, ajouter des apps ou des espaceurs, supprimer, dupliquer.
 - Import / export des profils en JSON.
@@ -69,13 +70,15 @@ Sources/Docko/
   Models.swift                 DockProfile, DockItem
   ManagerView.swift            Fenêtre de gestion (SwiftUI)
   ProfileEditorView.swift      Éditeur d'un profil
-  ColorHex.swift, Prompts.swift
+  SettingsView.swift           Réglages (démarrage, nom dans la barre, raccourcis)
+  HotkeyManager.swift          Raccourcis globaux Carbon (déclencheur puis touche)
+  Shortcut.swift, LoginItemService.swift, ColorHex.swift, Prompts.swift
 Resources/Info.plist           LSUIElement, schéma d'URL
 Makefile                       Assemble le .app
 ```
 
 ## Limites connues
 
-- Pas de raccourci clavier global (nécessiterait Carbon ou une dépendance). Utilise Raccourcis + `docko://`.
+- Les raccourcis globaux passent par `RegisterEventHotKey` (Carbon). Pendant les deux secondes qui suivent ⌘D, les touches des profils sont capturées globalement, puis relâchées.
 - Pas d'intégration App Intents : `swift build` n'exécute pas l'extraction de métadonnées d'Xcode, donc les intents ne seraient pas visibles dans Raccourcis. Le schéma d'URL couvre le besoin.
 - Les éléments du Dock d'un type inconnu dans `persistent-apps` sont ignorés à la capture.

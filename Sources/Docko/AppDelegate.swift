@@ -8,7 +8,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let menu = NSMenu()
     private var managerWindow: NSWindow?
+    private var settingsWindow: NSWindow?
     private var cancellables = Set<AnyCancellable>()
+
+    private let hotkeys = HotkeyManager()
+    private var chordTimer: Timer?
+    private var chordArmed = false
 
     // MARK: - Cycle de vie
 
@@ -26,11 +31,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         LoginItemService.sync(with: store.launchAtLogin)
 
+        hotkeys.onLeader = { [weak self] in self?.leaderPressed() }
+        hotkeys.onChordKey = { [weak self] code in self?.chordKeyPressed(code) }
+        registeredLeader = store.leaderShortcut
+        hotkeys.registerLeader(store.leaderShortcut)
+
         // Le store publie avant la mutation ; on repasse par la main queue pour lire l'état à jour.
         store.objectWillChange
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.refreshStatusTitle() }
+            .sink { [weak self] _ in self?.storeDidChange() }
             .store(in: &cancellables)
+    }
+
+    private var registeredLeader: Shortcut?
+
+    private func storeDidChange() {
+        refreshStatusTitle()
+        if registeredLeader != store.leaderShortcut {
+            registeredLeader = store.leaderShortcut
+            hotkeys.registerLeader(store.leaderShortcut)
+        }
+    }
+
+    // MARK: - Raccourcis globaux (déclencheur puis touche)
+
+    private func leaderPressed() {
+        let codes = store.profiles.compactMap { store.effectiveHotkey(for: $0)?.keyCode }
+        guard !codes.isEmpty else { return }
+        hotkeys.armChord(keyCodes: codes)
+        chordArmed = true
+        refreshStatusTitle()
+        chordTimer?.invalidate()
+        chordTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+            self?.endChord()
+        }
+    }
+
+    private func chordKeyPressed(_ keyCode: UInt32) {
+        endChord()
+        guard let profile = store.profiles.first(where: { store.effectiveHotkey(for: $0)?.keyCode == keyCode }) else { return }
+        applyReportingErrors(id: profile.id)
+    }
+
+    private func endChord() {
+        chordTimer?.invalidate()
+        chordTimer = nil
+        hotkeys.disarmChord()
+        chordArmed = false
+        refreshStatusTitle()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -74,13 +122,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             empty.isEnabled = false
             menu.addItem(empty)
         } else {
-            for (index, profile) in store.profiles.enumerated() {
-                let item = NSMenuItem(
-                    title: profile.name,
-                    action: #selector(applyProfile(_:)),
-                    keyEquivalent: index < 9 ? "\(index + 1)" : ""
-                )
+            for profile in store.profiles {
+                let item = NSMenuItem(title: profile.name, action: #selector(applyProfile(_:)), keyEquivalent: "")
                 item.target = self
+                if let key = store.effectiveHotkey(for: profile) {
+                    item.attributedTitle = Self.titleWithHint(profile.name, hint: "\(store.leaderShortcut.display) \(key.display)")
+                }
                 item.image = NSColor.dotImage(hex: profile.colorHex)
                 item.representedObject = profile.id
                 item.state = profile.id == store.activeProfileID ? .on : .off
@@ -110,9 +157,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        let manage = NSMenuItem(title: "Gérer les profils…", action: #selector(openManager), keyEquivalent: ",")
+        let manage = NSMenuItem(title: "Gérer les profils…", action: #selector(openManager), keyEquivalent: "")
         manage.target = self
         menu.addItem(manage)
+
+        let settings = NSMenuItem(title: "Réglages…", action: #selector(openSettings), keyEquivalent: ",")
+        settings.target = self
+        menu.addItem(settings)
 
         let dockSettings = NSMenuItem(title: "Réglages du Dock…", action: #selector(openDockSettings), keyEquivalent: "")
         dockSettings.target = self
@@ -146,11 +197,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func refreshStatusTitle() {
         guard let button = statusItem?.button else { return }
-        if store.showsNameInMenuBar, let active = store.activeProfile {
+        if chordArmed {
+            button.title = " \(store.leaderShortcut.display) ▸ touche du profil…"
+        } else if store.showsNameInMenuBar, let active = store.activeProfile {
             button.title = " " + active.name
         } else {
             button.title = ""
         }
+    }
+
+    /// Titre de menu avec l'indication du raccourci en gris, à la place d'un keyEquivalent.
+    private static func titleWithHint(_ title: String, hint: String) -> NSAttributedString {
+        let result = NSMutableAttributedString(string: title, attributes: [
+            .font: NSFont.menuFont(ofSize: 0),
+        ])
+        result.append(NSAttributedString(string: "    " + hint, attributes: [
+            .font: NSFont.menuFont(ofSize: NSFont.smallSystemFontSize),
+            .foregroundColor: NSColor.secondaryLabelColor,
+        ]))
+        return result
     }
 
     // MARK: - Actions
@@ -190,6 +255,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func openManager() {
         showManager()
+    }
+
+    @objc private func openSettings() {
+        showSettings()
     }
 
     @objc private func openDockSettings() {
@@ -233,5 +302,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         NSApp.activate(ignoringOtherApps: true)
         managerWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    func showSettings() {
+        if settingsWindow == nil {
+            let root = SettingsView().environmentObject(store)
+            let host = NSHostingController(rootView: root)
+            let window = NSWindow(contentViewController: host)
+            window.title = "Réglages de Docko"
+            window.styleMask = [.titled, .closable]
+            window.isReleasedWhenClosed = false
+            window.center()
+            settingsWindow = window
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        settingsWindow?.makeKeyAndOrderFront(nil)
     }
 }

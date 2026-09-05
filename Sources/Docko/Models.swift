@@ -54,6 +54,8 @@ struct DockProfile: Codable, Identifiable, Hashable {
     var colorHex: String = DockProfile.defaultColors[0]
     var items: [DockItem] = []
     var createdAt: Date = Date()
+    /// Touche pressée après le déclencheur. nil = chiffre selon la position dans la liste.
+    var hotkey: Shortcut? = nil
 
     static let defaultColors = [
         "#4A90E2", "#50C878", "#F5A623", "#E94E77", "#9B59B6", "#1ABC9C", "#E67E22", "#7F8C8D",

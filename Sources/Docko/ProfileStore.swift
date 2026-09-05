@@ -21,6 +21,8 @@ final class ProfileStore: ObservableObject {
     @Published var showsNameInMenuBar: Bool = false { didSet { save() } }
     /// Préférence utilisateur. L'état réel côté macOS est géré par `LoginItemService`.
     @Published var launchAtLogin: Bool = false { didSet { save() } }
+    /// Déclencheur des raccourcis globaux (⌘D par défaut).
+    @Published var leaderShortcut: Shortcut = .defaultLeader { didSet { save() } }
 
     private struct Persisted: Codable {
         var version: Int = 1
@@ -28,12 +30,14 @@ final class ProfileStore: ObservableObject {
         var activeProfileID: UUID?
         var showsNameInMenuBar: Bool
         var launchAtLogin: Bool
+        var leaderShortcut: Shortcut
 
-        init(profiles: [DockProfile], activeProfileID: UUID?, showsNameInMenuBar: Bool, launchAtLogin: Bool) {
+        init(profiles: [DockProfile], activeProfileID: UUID?, showsNameInMenuBar: Bool, launchAtLogin: Bool, leaderShortcut: Shortcut) {
             self.profiles = profiles
             self.activeProfileID = activeProfileID
             self.showsNameInMenuBar = showsNameInMenuBar
             self.launchAtLogin = launchAtLogin
+            self.leaderShortcut = leaderShortcut
         }
 
         // Tolère les fichiers écrits par une version antérieure (clés absentes).
@@ -44,6 +48,7 @@ final class ProfileStore: ObservableObject {
             activeProfileID = try c.decodeIfPresent(UUID.self, forKey: .activeProfileID)
             showsNameInMenuBar = try c.decodeIfPresent(Bool.self, forKey: .showsNameInMenuBar) ?? false
             launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
+            leaderShortcut = try c.decodeIfPresent(Shortcut.self, forKey: .leaderShortcut) ?? .defaultLeader
         }
     }
 
@@ -74,6 +79,13 @@ final class ProfileStore: ObservableObject {
 
     func profile(id: UUID) -> DockProfile? {
         profiles.first { $0.id == id }
+    }
+
+    /// Touche effective d'un profil : la sienne, sinon le chiffre de sa position (1 à 9).
+    func effectiveHotkey(for profile: DockProfile) -> Shortcut? {
+        if let hotkey = profile.hotkey { return hotkey }
+        guard let index = profiles.firstIndex(where: { $0.id == profile.id }) else { return nil }
+        return Shortcut.digit(index + 1)
     }
 
     func profile(named name: String) -> DockProfile? {
@@ -200,6 +212,7 @@ final class ProfileStore: ObservableObject {
         activeProfileID = persisted.activeProfileID
         showsNameInMenuBar = persisted.showsNameInMenuBar
         launchAtLogin = persisted.launchAtLogin
+        leaderShortcut = persisted.leaderShortcut
     }
 
     private func save() {
@@ -208,7 +221,8 @@ final class ProfileStore: ObservableObject {
             profiles: profiles,
             activeProfileID: activeProfileID,
             showsNameInMenuBar: showsNameInMenuBar,
-            launchAtLogin: launchAtLogin
+            launchAtLogin: launchAtLogin,
+            leaderShortcut: leaderShortcut
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

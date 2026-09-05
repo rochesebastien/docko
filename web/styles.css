@@ -207,7 +207,7 @@ code {
   cursor: pointer;
   transition: background 0.12s ease;
 }
-.mb-status:hover, .mb-status[aria-expanded="true"] { background: rgba(255, 255, 255, 0.18); }
+.mb-status:hover, .mb-status[aria-expanded="true"], .mb-status.armed { background: rgba(255, 255, 255, 0.18); }
 .mb-status-icon { width: 15px; height: 15px; }
 .mb-status.no-name #status-name { display: none; }
 
