@@ -88,11 +88,12 @@ code {
   width: 34px;
   height: 34px;
   border-radius: 8px;
-  border: 1px solid var(--line-strong);
+  border: 0;
   background: transparent;
-  transition: background 0.15s ease;
+  opacity: 0.85;
+  transition: background 0.15s ease, opacity 0.15s ease;
 }
-.icon-btn:hover { background: var(--surface); }
+.icon-btn:hover { background: var(--surface); opacity: 1; }
 .icon-btn img { width: 17px; height: 17px; }
 
 /* ---------- Nav ---------- */
