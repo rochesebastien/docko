@@ -163,7 +163,7 @@ function renderMenu() {
       `<span class="dd-check">✓</span>` +
       `<span class="dd-swatch" style="background:${p.color}"></span>` +
       `<span class="dd-name">${p.name}</span>` +
-      `<span class="dd-key">⌘${index + 1}</span>`;
+      `<span class="dd-key">⌘D ${index + 1}</span>`;
     btn.addEventListener('click', () => {
       stopAutoDemo();
       select(index);
@@ -208,6 +208,8 @@ document.getElementById('dd-manage').addEventListener('click', () => {
   stopAutoDemo();
   closeMenu();
 });
+
+document.getElementById('toggle-login').addEventListener('change', stopAutoDemo);
 
 toggleName.addEventListener('change', () => {
   stopAutoDemo();
@@ -258,14 +260,23 @@ function reducedMotion() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-// Raccourcis ⌘1-3 quand la démo est visible.
+// Raccourci en séquence, comme dans l'app : ⌘D puis le chiffre du profil.
+let chordUntil = 0;
 document.addEventListener('keydown', (e) => {
-  if (!(e.metaKey || e.ctrlKey)) return;
-  const n = Number(e.key);
-  if (n >= 1 && n <= PROFILES.length) {
-    const rect = demo.getBoundingClientRect();
-    if (rect.bottom < 0 || rect.top > window.innerHeight) return;
+  const rect = demo.getBoundingClientRect();
+  if (rect.bottom < 0 || rect.top > window.innerHeight) return;
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd') {
     e.preventDefault();
+    chordUntil = Date.now() + 2000;
+    statusBtn.classList.add('armed');
+    setTimeout(() => { if (Date.now() >= chordUntil) statusBtn.classList.remove('armed'); }, 2000);
+    return;
+  }
+  const n = Number(e.key);
+  if (Date.now() < chordUntil && n >= 1 && n <= PROFILES.length) {
+    e.preventDefault();
+    chordUntil = 0;
+    statusBtn.classList.remove('armed');
     stopAutoDemo();
     select(n - 1);
   }
