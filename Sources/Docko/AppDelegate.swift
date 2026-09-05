@@ -1,6 +1,5 @@
 import AppKit
 import Combine
-import ServiceManagement
 import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
@@ -24,6 +23,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.delegate = self
         statusItem.menu = menu
         refreshStatusTitle()
+
+        LoginItemService.sync(with: store.launchAtLogin)
 
         // Le store publie avant la mutation ; on repasse par la main queue pour lire l'état à jour.
         store.objectWillChange
@@ -119,9 +120,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        let launch = NSMenuItem(title: "Lancer au démarrage", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
+        let launch = NSMenuItem(title: "Lancement au démarrage", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
         launch.target = self
-        launch.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        launch.state = LoginItemService.isEnabled ? .on : .off
+        if LoginItemService.requiresApproval {
+            launch.state = .mixed
+            launch.toolTip = "En attente d'autorisation dans Réglages Système › Général › Ouverture."
+        }
         menu.addItem(launch)
 
         let showName = NSMenuItem(
@@ -194,11 +199,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func toggleLaunchAtLogin() {
+        let enable = !(LoginItemService.isEnabled || LoginItemService.requiresApproval)
         do {
-            if SMAppService.mainApp.status == .enabled {
-                try SMAppService.mainApp.unregister()
-            } else {
-                try SMAppService.mainApp.register()
+            try LoginItemService.setEnabled(enable)
+            store.launchAtLogin = enable
+            if enable, LoginItemService.requiresApproval {
+                // macOS demande une validation manuelle : on amène l'utilisateur au bon endroit.
+                LoginItemService.openSystemSettings()
             }
         } catch {
             Prompts.showError(error, title: "Lancement au démarrage")

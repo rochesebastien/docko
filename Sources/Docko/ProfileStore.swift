@@ -19,12 +19,32 @@ final class ProfileStore: ObservableObject {
     @Published var profiles: [DockProfile] = [] { didSet { save() } }
     @Published var activeProfileID: UUID? = nil { didSet { save() } }
     @Published var showsNameInMenuBar: Bool = false { didSet { save() } }
+    /// Préférence utilisateur. L'état réel côté macOS est géré par `LoginItemService`.
+    @Published var launchAtLogin: Bool = false { didSet { save() } }
 
     private struct Persisted: Codable {
         var version: Int = 1
         var profiles: [DockProfile]
         var activeProfileID: UUID?
         var showsNameInMenuBar: Bool
+        var launchAtLogin: Bool
+
+        init(profiles: [DockProfile], activeProfileID: UUID?, showsNameInMenuBar: Bool, launchAtLogin: Bool) {
+            self.profiles = profiles
+            self.activeProfileID = activeProfileID
+            self.showsNameInMenuBar = showsNameInMenuBar
+            self.launchAtLogin = launchAtLogin
+        }
+
+        // Tolère les fichiers écrits par une version antérieure (clés absentes).
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            version = try c.decodeIfPresent(Int.self, forKey: .version) ?? 1
+            profiles = try c.decodeIfPresent([DockProfile].self, forKey: .profiles) ?? []
+            activeProfileID = try c.decodeIfPresent(UUID.self, forKey: .activeProfileID)
+            showsNameInMenuBar = try c.decodeIfPresent(Bool.self, forKey: .showsNameInMenuBar) ?? false
+            launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
+        }
     }
 
     /// Format des fichiers d'import/export.
@@ -179,6 +199,7 @@ final class ProfileStore: ObservableObject {
         profiles = persisted.profiles
         activeProfileID = persisted.activeProfileID
         showsNameInMenuBar = persisted.showsNameInMenuBar
+        launchAtLogin = persisted.launchAtLogin
     }
 
     private func save() {
@@ -186,7 +207,8 @@ final class ProfileStore: ObservableObject {
         let persisted = Persisted(
             profiles: profiles,
             activeProfileID: activeProfileID,
-            showsNameInMenuBar: showsNameInMenuBar
+            showsNameInMenuBar: showsNameInMenuBar,
+            launchAtLogin: launchAtLogin
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

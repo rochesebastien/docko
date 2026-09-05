@@ -10,7 +10,7 @@ Un profil enregistre les **apps épinglées** et les **espaceurs** du Dock. Comm
 - Enregistrer le Dock actuel comme nouveau profil, ou mettre à jour le profil actif depuis le Dock actuel.
 - Fenêtre de gestion : renommer, colorer, réordonner les apps par glisser-déposer, ajouter des apps ou des espaceurs, supprimer, dupliquer.
 - Import / export des profils en JSON.
-- Lancement au démarrage, affichage optionnel du nom du profil actif dans la barre.
+- Lancement au démarrage (élément d'ouverture de session macOS, réappliqué à chaque lancement), affichage optionnel du nom du profil actif dans la barre.
 - Schéma d'URL `docko://` pour piloter Docko depuis Raccourcis (bascule automatique avec les modes de concentration).
 
 ## Prérequis

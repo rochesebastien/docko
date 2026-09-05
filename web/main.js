@@ -209,6 +209,8 @@ document.getElementById('dd-manage').addEventListener('click', () => {
   closeMenu();
 });
 
+document.getElementById('toggle-login').addEventListener('change', stopAutoDemo);
+
 toggleName.addEventListener('change', () => {
   stopAutoDemo();
   statusBtn.classList.toggle('no-name', !toggleName.checked);
