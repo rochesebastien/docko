@@ -217,6 +217,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         dockSettings.target = self
         settingsMenu.addItem(dockSettings)
 
+        let restart = NSMenuItem(title: "Relancer le Dock", action: #selector(restartDock), keyEquivalent: "")
+        restart.target = self
+        restart.toolTip = "Utile si le Dock reste affiché ou ne réagit plus à ses réglages."
+        settingsMenu.addItem(restart)
+
         settingsMenu.addItem(.separator())
 
         let launch = NSMenuItem(title: "Lancement au démarrage", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
@@ -321,6 +326,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func openDockSettings() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.Desktop-Settings.extension") {
             NSWorkspace.shared.open(url)
+        }
+    }
+
+    /// Dépannage : le Dock garde parfois un état incohérent (masquage automatique ignoré,
+    /// barre collée par-dessus les fenêtres) ; le relancer suffit.
+    @objc private func restartDock() {
+        do {
+            try DockService.restartDock()
+        } catch {
+            Prompts.showError(error, title: "Relancer le Dock")
         }
     }
 
