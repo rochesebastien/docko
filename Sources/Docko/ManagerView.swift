@@ -22,17 +22,20 @@ struct ManagerView: View {
     var body: some View {
         NavigationSplitView {
             sidebar
-                .navigationSplitViewColumnWidth(min: 190, ideal: 230, max: 320)
+                .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 320)
         } detail: {
             if let selection, let binding = store.binding(for: selection) {
-                ProfileEditorView(profile: binding)
-                    .id(selection)
+                ProfileEditorView(
+                    profile: binding,
+                    onDuplicate: duplicateSelected,
+                    onDelete: { confirmDelete = true }
+                )
+                .id(selection)
             } else {
                 placeholder
             }
         }
-        .frame(minWidth: 640, minHeight: 400)
-        .toolbar { toolbarContent }
+        .frame(minWidth: 700, minHeight: 440)
         .confirmationDialog(
             "Supprimer ce profil ?",
             isPresented: $confirmDelete,
@@ -56,89 +59,107 @@ struct ManagerView: View {
         }
     }
 
-    // MARK: - Sidebar
+    // MARK: - Barre latérale
 
     private var sidebar: some View {
-        List(selection: $selection) {
-            ForEach(store.profiles) { profile in
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(Color(hex: profile.colorHex))
-                        .frame(width: 10, height: 10)
-                    Text(profile.name)
-                        .lineLimit(1)
-                    Spacer()
-                    if profile.id == store.activeProfileID {
-                        Image(systemName: "checkmark")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .help("Profil actuellement appliqué")
+        VStack(spacing: 0) {
+            sidebarHeader
+            List(selection: $selection) {
+                Section {
+                    ForEach(store.profiles) { profile in
+                        SidebarRow(profile: profile, isActive: profile.id == store.activeProfileID)
+                            .tag(profile.id)
+                            .contextMenu { contextMenu(for: profile) }
                     }
-                    Text("\(profile.items.count)")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .monospacedDigit()
+                    .onMove { store.moveProfiles(from: $0, to: $1) }
+                } header: {
+                    Text("Profils")
                 }
-                .tag(profile.id)
             }
-            .onMove { store.moveProfiles(from: $0, to: $1) }
+            .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
+
+            Divider()
+            sidebarFooter
         }
-        .listStyle(.sidebar)
+        .background(.thinMaterial)
     }
 
-    private var placeholder: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "dock.rectangle")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
-            Text(store.profiles.isEmpty ? "Aucun profil" : "Sélectionne un profil")
-                .font(.title3)
-                .foregroundStyle(.secondary)
-            if store.profiles.isEmpty {
-                Button("Enregistrer le Dock actuel comme profil") { captureCurrentDock() }
-            }
+    /// Identité de l'app au-dessus de la liste, sous les boutons de fenêtre.
+    private var sidebarHeader: some View {
+        HStack {
+            Wordmark()
+                .frame(height: 22)
+            Spacer()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
     }
 
-    // MARK: - Toolbar
-
-    @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
+    private var sidebarFooter: some View {
+        HStack(spacing: 4) {
             Menu {
                 Button("Depuis le Dock actuel…") { captureCurrentDock() }
                 Button("Profil vide…") { createEmptyProfile() }
             } label: {
                 Label("Nouveau profil", systemImage: "plus")
+                    .font(.callout)
             }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
             .help("Nouveau profil")
 
-            Button {
-                duplicateSelected()
-            } label: {
-                Label("Dupliquer", systemImage: "plus.square.on.square")
-            }
-            .disabled(selection == nil)
-            .help("Dupliquer le profil sélectionné")
-
-            Button {
-                confirmDelete = true
-            } label: {
-                Label("Supprimer", systemImage: "trash")
-            }
-            .disabled(selection == nil)
-            .help("Supprimer le profil sélectionné")
+            Spacer()
 
             Menu {
                 Button("Importer des profils…") { importProfiles() }
                 Button("Exporter tous les profils…") { exportProfiles() }
                     .disabled(store.profiles.isEmpty)
             } label: {
-                Label("Importer / Exporter", systemImage: "square.and.arrow.up.on.square")
+                Image(systemName: "ellipsis.circle")
+                    .font(.callout)
             }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
             .help("Importer ou exporter des profils (JSON)")
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+
+    @ViewBuilder
+    private func contextMenu(for profile: DockProfile) -> some View {
+        Button("Appliquer au Dock") {
+            do { try store.apply(id: profile.id) } catch { errorMessage = error.localizedDescription }
+        }
+        .disabled(profile.items.isEmpty)
+        Divider()
+        Button("Dupliquer") {
+            if let copy = store.duplicate(id: profile.id) { selection = copy.id }
+        }
+        Button("Supprimer…", role: .destructive) {
+            selection = profile.id
+            confirmDelete = true
+        }
+    }
+
+    private var placeholder: some View {
+        EmptyState(
+            systemImage: "dock.rectangle",
+            title: store.profiles.isEmpty ? "Aucun profil" : "Sélectionne un profil",
+            subtitle: store.profiles.isEmpty
+                ? "Un profil mémorise les apps épinglées et les espaceurs du Dock. Commence par enregistrer ton Dock actuel."
+                : "Choisis un profil dans la barre latérale pour le modifier ou l'appliquer."
+        ) {
+            if store.profiles.isEmpty {
+                Button("Enregistrer le Dock actuel") { captureCurrentDock() }
+                    .buttonStyle(.borderedProminent)
+            }
+        }
+        .background(Theme.canvas)
     }
 
     // MARK: - Actions
@@ -207,5 +228,28 @@ struct ManagerView: View {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+}
+
+// MARK: - Ligne de la barre latérale
+
+private struct SidebarRow: View {
+    let profile: DockProfile
+    let isActive: Bool
+
+    var body: some View {
+        HStack(spacing: 9) {
+            ColorSwatch(hex: profile.colorHex, size: 12)
+            Text(profile.name)
+                .lineLimit(1)
+            Spacer(minLength: 6)
+            if isActive {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .help("Profil actuellement appliqué")
+            }
+        }
+        .padding(.vertical, 2)
     }
 }

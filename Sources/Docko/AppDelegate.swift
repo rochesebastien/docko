@@ -17,10 +17,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: - Cycle de vie
 
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        terminateOtherInstances()
+    }
 
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        applyActivationPolicy()
+
+        MenuBarPlacement.seedPreferredPositionIfNeeded()
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem.autosaveName = MenuBarPlacement.autosaveName
         if let button = statusItem.button {
             button.image = NSImage(systemSymbolName: "dock.rectangle", accessibilityDescription: "Docko")
             button.imagePosition = .imageLeading
@@ -28,6 +34,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.delegate = self
         statusItem.menu = menu
         refreshStatusTitle()
+        // Diagnostic : une abscisse très négative signifie que l'icône est repliée par un outil
+        // du type Hidden Bar (voir MenuBarPlacement).
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+            guard let self, let frame = self.statusItem.button?.window?.frame else { return }
+            NSLog("Docko: icône de barre des menus en x=%.0f (largeur %.0f)", frame.origin.x, frame.width)
+        }
 
         LoginItemService.sync(with: store.launchAtLogin)
 
@@ -56,10 +68,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return false
     }
 
+    /// Une seule instance à la fois. Lancer une autre copie de Docko (une nouvelle build dans
+    /// `dist/`, ou `/Applications` alors que `dist/` tourne encore) remplace l'ancienne au lieu
+    /// d'empiler des icônes identiques dans la barre des menus.
+    private func terminateOtherInstances() {
+        guard let bundleID = Bundle.main.bundleIdentifier else { return }
+        let me = ProcessInfo.processInfo.processIdentifier
+        for other in NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+        where other.processIdentifier != me {
+            if !other.terminate() { other.forceTerminate() }
+        }
+    }
+
+    /// Avec « Afficher dans le Dock », Docko devient une app ordinaire (icône et point dans le
+    /// Dock, présence dans ⌘⇥) ; sinon elle ne vit que dans la barre des menus.
+    private func applyActivationPolicy() {
+        let wanted: NSApplication.ActivationPolicy = store.showsInDock ? .regular : .accessory
+        guard NSApp.activationPolicy() != wanted else { return }
+        NSApp.setActivationPolicy(wanted)
+    }
+
     private var registeredLeader: Shortcut?
 
     private func storeDidChange() {
         refreshStatusTitle()
+        applyActivationPolicy()
         if registeredLeader != store.leaderShortcut {
             registeredLeader = store.leaderShortcut
             hotkeys.registerLeader(store.leaderShortcut)
@@ -150,12 +183,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(.separator())
 
+        let manage = NSMenuItem(title: "Gérer les profils…", action: #selector(openManager), keyEquivalent: "")
+        manage.target = self
+        manage.image = Self.symbol("rectangle.stack")
+        menu.addItem(manage)
+
         let capture = NSMenuItem(
             title: "Enregistrer le Dock actuel comme nouveau profil…",
             action: #selector(captureCurrentDock),
             keyEquivalent: "n"
         )
         capture.target = self
+        capture.image = Self.symbol("plus.circle")
         menu.addItem(capture)
 
         let update = NSMenuItem(
@@ -166,23 +205,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         )
         update.target = self
         update.isEnabled = store.activeProfile != nil
+        update.image = Self.symbol("arrow.triangle.2.circlepath")
         menu.addItem(update)
 
         menu.addItem(.separator())
 
-        let manage = NSMenuItem(title: "Gérer les profils…", action: #selector(openManager), keyEquivalent: "")
-        manage.target = self
-        menu.addItem(manage)
+        let settingsMenu = NSMenu(title: "Réglages")
 
-        let settings = NSMenuItem(title: "Réglages…", action: #selector(openSettings), keyEquivalent: ",")
+        let settings = NSMenuItem(title: "Réglages de Docko…", action: #selector(openSettings), keyEquivalent: ",")
         settings.target = self
-        menu.addItem(settings)
+        settings.image = Self.symbol("gearshape")
+        settingsMenu.addItem(settings)
 
         let dockSettings = NSMenuItem(title: "Réglages du Dock…", action: #selector(openDockSettings), keyEquivalent: "")
         dockSettings.target = self
-        menu.addItem(dockSettings)
+        dockSettings.image = Self.symbol("dock.rectangle")
+        settingsMenu.addItem(dockSettings)
 
-        menu.addItem(.separator())
+        let restart = NSMenuItem(title: "Relancer le Dock", action: #selector(restartDock), keyEquivalent: "")
+        restart.target = self
+        restart.toolTip = "Utile si le Dock reste affiché ou ne réagit plus à ses réglages."
+        restart.image = Self.symbol("arrow.clockwise")
+        settingsMenu.addItem(restart)
+
+        settingsMenu.addItem(.separator())
 
         let launch = NSMenuItem(title: "Lancement au démarrage", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
         launch.target = self
@@ -191,7 +237,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             launch.state = .mixed
             launch.toolTip = "En attente d'autorisation dans Réglages Système › Général › Ouverture."
         }
-        menu.addItem(launch)
+        launch.image = Self.symbol("power")
+        settingsMenu.addItem(launch)
 
         let showName = NSMenuItem(
             title: "Afficher le nom du profil dans la barre",
@@ -200,12 +247,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         )
         showName.target = self
         showName.state = store.showsNameInMenuBar ? .on : .off
-        menu.addItem(showName)
+        showName.image = Self.symbol("textformat")
+        settingsMenu.addItem(showName)
+
+        let showDock = NSMenuItem(title: "Afficher Docko dans le Dock", action: #selector(toggleShowsInDock), keyEquivalent: "")
+        showDock.target = self
+        showDock.state = store.showsInDock ? .on : .off
+        showDock.image = Self.symbol("app.badge")
+        settingsMenu.addItem(showDock)
+
+        let settingsItem = NSMenuItem(title: "Réglages", action: nil, keyEquivalent: "")
+        settingsItem.submenu = settingsMenu
+        settingsItem.image = Self.symbol("slider.horizontal.3")
+        menu.addItem(settingsItem)
 
         menu.addItem(.separator())
 
         let quit = NSMenuItem(title: "Quitter Docko", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        quit.image = Self.symbol("xmark.square")
         menu.addItem(quit)
+    }
+
+    /// Symbole SF pour une entrée de menu, à la taille des menus système.
+    private static func symbol(_ name: String) -> NSImage? {
+        let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)
+        return image?.withSymbolConfiguration(.init(pointSize: 13, weight: .regular))
     }
 
     private func refreshStatusTitle() {
@@ -280,6 +346,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    /// Dépannage : le Dock garde parfois un état incohérent (masquage automatique ignoré,
+    /// barre collée par-dessus les fenêtres) ; le relancer suffit.
+    @objc private func restartDock() {
+        do {
+            try DockService.restartDock()
+        } catch {
+            Prompts.showError(error, title: "Relancer le Dock")
+        }
+    }
+
     @objc private func toggleLaunchAtLogin() {
         let enable = !(LoginItemService.isEnabled || LoginItemService.requiresApproval)
         do {
@@ -298,6 +374,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         store.showsNameInMenuBar.toggle()
     }
 
+    @objc private func toggleShowsInDock() {
+        store.showsInDock.toggle()
+    }
+
     // MARK: - Fenêtre de gestion
 
     func showManager() {
@@ -305,10 +385,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let root = ManagerView().environmentObject(store)
             let host = NSHostingController(rootView: root)
             let window = NSWindow(contentViewController: host)
-            window.title = "Docko — Profils de Dock"
-            window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-            window.setContentSize(NSSize(width: 820, height: 520))
-            window.minSize = NSSize(width: 640, height: 400)
+            window.title = "Docko"
+            window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+            window.titlebarAppearsTransparent = true
+            window.titleVisibility = .hidden
+            window.toolbarStyle = .unified
+            window.setContentSize(NSSize(width: 880, height: 560))
+            window.minSize = NSSize(width: 700, height: 440)
             window.isReleasedWhenClosed = false
             window.center()
             managerWindow = window
@@ -324,6 +407,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let window = NSWindow(contentViewController: host)
             window.title = "Réglages de Docko"
             window.styleMask = [.titled, .closable]
+            window.titlebarAppearsTransparent = true
             window.isReleasedWhenClosed = false
             window.center()
             settingsWindow = window

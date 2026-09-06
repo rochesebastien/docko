@@ -6,65 +6,75 @@ struct SettingsView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        Form {
-            Section("Général") {
-                Toggle("Lancement au démarrage", isOn: launchAtLoginBinding)
-                if LoginItemService.requiresApproval {
-                    HStack {
-                        Text("macOS attend ton autorisation dans Réglages Système.")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Button("Ouvrir…") { LoginItemService.openSystemSettings() }
-                    }
-                }
-                Toggle("Afficher le nom du profil dans la barre des menus", isOn: $store.showsNameInMenuBar)
-            }
-
-            Section {
-                HStack {
-                    Text("Déclencheur")
-                    Spacer()
-                    ShortcutRecorder(shortcut: leaderBinding, placeholder: "⌘D", requiresModifiers: true)
-                    Button("Réinitialiser") { store.leaderShortcut = .defaultLeader }
-                        .disabled(store.leaderShortcut == .defaultLeader)
-                }
-                Text("Appuie sur le déclencheur, puis sur la touche du profil dans les deux secondes. Les raccourcis fonctionnent dans toutes les applications.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            } header: {
-                Text("Raccourcis")
-            }
-
-            Section("Touche par profil") {
-                if store.profiles.isEmpty {
-                    Text("Aucun profil.").foregroundStyle(.secondary)
-                }
-                ForEach(Array(store.profiles.enumerated()), id: \.element.id) { index, profile in
-                    HStack {
-                        Circle().fill(Color(hex: profile.colorHex)).frame(width: 10, height: 10)
-                        Text(profile.name)
-                        Spacer()
-                        Text(store.leaderShortcut.display + " puis")
-                            .foregroundStyle(.secondary)
-                        ShortcutRecorder(
-                            shortcut: hotkeyBinding(for: profile.id),
-                            placeholder: Shortcut.digit(index + 1)?.display ?? "—",
-                            requiresModifiers: false
-                        )
-                        Button {
-                            setHotkey(nil, for: profile.id)
-                        } label: {
-                            Image(systemName: "arrow.uturn.backward")
+        VStack(spacing: 0) {
+            titleBar
+            Form {
+                Section {
+                    Toggle("Lancement au démarrage", isOn: launchAtLoginBinding)
+                    if LoginItemService.requiresApproval {
+                        HStack {
+                            Text("macOS attend ton autorisation dans Réglages Système.")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button("Ouvrir…") { LoginItemService.openSystemSettings() }
                         }
-                        .help("Revenir à la touche par défaut")
-                        .disabled(profile.hotkey == nil)
+                    }
+                    Toggle("Afficher le nom du profil dans la barre des menus", isOn: $store.showsNameInMenuBar)
+                    Toggle("Afficher Docko dans le Dock", isOn: $store.showsInDock)
+                } header: {
+                    Text("Général")
+                } footer: {
+                    Text("Avec l'icône dans le Dock, Docko se comporte comme une app ordinaire : point sous l'icône quand elle tourne, présence dans ⌘⇥. Sinon elle ne vit que dans la barre des menus.")
+                }
+
+                Section {
+                    HStack {
+                        Text("Déclencheur")
+                        Spacer()
+                        ShortcutRecorder(shortcut: leaderBinding, placeholder: "⌘D", requiresModifiers: true)
+                        Button("Réinitialiser") { store.leaderShortcut = .defaultLeader }
+                            .disabled(store.leaderShortcut == .defaultLeader)
+                    }
+                } header: {
+                    Text("Raccourcis")
+                } footer: {
+                    Text("Appuie sur le déclencheur, puis sur la touche du profil dans les deux secondes. Les raccourcis fonctionnent dans toutes les applications.")
+                }
+
+                Section("Touche par profil") {
+                    if store.profiles.isEmpty {
+                        Text("Aucun profil.").foregroundStyle(.secondary)
+                    }
+                    ForEach(Array(store.profiles.enumerated()), id: \.element.id) { index, profile in
+                        HStack(spacing: 10) {
+                            ColorSwatch(hex: profile.colorHex, size: 12)
+                            Text(profile.name)
+                                .lineLimit(1)
+                            Spacer()
+                            Text(store.leaderShortcut.display + " puis")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                            ShortcutRecorder(
+                                shortcut: hotkeyBinding(for: profile.id),
+                                placeholder: Shortcut.digit(index + 1)?.display ?? "—",
+                                requiresModifiers: false
+                            )
+                            Button {
+                                setHotkey(nil, for: profile.id)
+                            } label: {
+                                Image(systemName: "arrow.uturn.backward")
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Revenir à la touche par défaut")
+                            .disabled(profile.hotkey == nil)
+                        }
                     }
                 }
             }
+            .formStyle(.grouped)
         }
-        .formStyle(.grouped)
-        .frame(width: 520)
+        .frame(width: 540)
         .alert("Docko", isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
@@ -73,6 +83,26 @@ struct SettingsView: View {
         } message: {
             Text(errorMessage ?? "")
         }
+    }
+
+    private var titleBar: some View {
+        HStack(spacing: 12) {
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 40, height: 40)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Docko")
+                    .font(.headline)
+                Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—") · Profils de Dock")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 34)
+        .padding(.bottom, 4)
     }
 
     // MARK: - Bindings

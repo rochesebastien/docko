@@ -19,17 +19,21 @@ bundle: build
 	cp "$(BUILD_DIR)/$(APP_NAME)" "$(CONTENTS)/MacOS/$(APP_NAME)"
 	cp Resources/Info.plist "$(CONTENTS)/Info.plist"
 	@if [ -f "$(ICON_SRC)" ]; then cp "$(ICON_SRC)" "$(CONTENTS)/Resources/AppIcon.icns"; fi
+	cp Resources/Wordmark.png "$(CONTENTS)/Resources/Wordmark.png"
 	echo "APPL????" > "$(CONTENTS)/PkgInfo"
 	codesign --force --deep --sign - "$(APP_BUNDLE)"
 	@echo "→ $(APP_BUNDLE)"
 
 run: bundle
+	-killall $(APP_NAME) 2>/dev/null; while pgrep -x $(APP_NAME) >/dev/null; do sleep 0.2; done
 	open "$(APP_BUNDLE)"
 
 install: bundle
+	-killall $(APP_NAME) 2>/dev/null; while pgrep -x $(APP_NAME) >/dev/null; do sleep 0.2; done
 	rm -rf "/Applications/$(APP_NAME).app"
 	cp -R "$(APP_BUNDLE)" /Applications/
-	@echo "→ /Applications/$(APP_NAME).app"
+	open "/Applications/$(APP_NAME).app"
+	@echo "→ /Applications/$(APP_NAME).app (lancé)"
 
 # Génère Resources/AppIcon.icns depuis Resources/AppIcon.png (1024x1024).
 icon:
