@@ -2,7 +2,7 @@
 
 Des profils de Dock macOS, changeables depuis la barre des menus.
 
-Un profil enregistre les **apps épinglées** et les **espaceurs** du Dock. Comme [Dockset](https://dockset.app), Docko ne touche ni aux dossiers, ni aux apps récentes, ni aux réglages du Dock (taille, position, agrandissement…), et n'ouvre ni ne ferme aucune application. Tout est stocké en local, aucun compte.
+Un profil enregistre les **apps épinglées** et les **espaceurs** du Dock. Docko ne touche ni aux dossiers, ni aux apps récentes, ni aux réglages du Dock (taille, position, agrandissement…), et n'ouvre ni ne ferme aucune application. Tout est stocké en local, aucun compte.
 
 ## Fonctionnalités
 
