@@ -87,18 +87,13 @@ struct ManagerView: View {
 
     /// Identité de l'app au-dessus de la liste, sous les boutons de fenêtre.
     private var sidebarHeader: some View {
-        HStack(spacing: 10) {
-            Image(nsImage: NSApp.applicationIconImage)
-                .resizable()
-                .interpolation(.high)
-                .frame(width: 30, height: 30)
-                .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
-            Text("Docko")
-                .font(.headline)
+        HStack {
+            Wordmark()
+                .frame(height: 22)
             Spacer()
         }
         .padding(.horizontal, 16)
-        .padding(.top, 6)
+        .padding(.top, 8)
         .padding(.bottom, 10)
     }
 

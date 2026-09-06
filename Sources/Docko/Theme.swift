@@ -215,3 +215,32 @@ struct EmptyState<Actions: View>: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
+
+// MARK: - Logotype
+
+/// Le logotype Docko (barres du Dock + nom), en image modèle : noir sur thème clair,
+/// blanc sur thème sombre, carrés en gris léger. Source : Resources/Wordmark.png,
+/// généré depuis web/assets/docko-title.png (l'encre devient de l'opacité).
+struct Wordmark: View {
+    private static let image: NSImage? = {
+        guard let url = Bundle.main.url(forResource: "Wordmark", withExtension: "png"),
+              let image = NSImage(contentsOf: url) else { return nil }
+        image.isTemplate = true
+        return image
+    }()
+
+    var body: some View {
+        if let image = Self.image {
+            Image(nsImage: image)
+                .renderingMode(.template)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .foregroundStyle(.primary)
+                .accessibilityLabel("Docko")
+        } else {
+            Text("Docko")
+                .font(.headline)
+        }
+    }
+}

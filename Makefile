@@ -19,6 +19,7 @@ bundle: build
 	cp "$(BUILD_DIR)/$(APP_NAME)" "$(CONTENTS)/MacOS/$(APP_NAME)"
 	cp Resources/Info.plist "$(CONTENTS)/Info.plist"
 	@if [ -f "$(ICON_SRC)" ]; then cp "$(ICON_SRC)" "$(CONTENTS)/Resources/AppIcon.icns"; fi
+	cp Resources/Wordmark.png "$(CONTENTS)/Resources/Wordmark.png"
 	echo "APPL????" > "$(CONTENTS)/PkgInfo"
 	codesign --force --deep --sign - "$(APP_BUNDLE)"
 	@echo "→ $(APP_BUNDLE)"
