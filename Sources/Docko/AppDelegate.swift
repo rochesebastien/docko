@@ -183,12 +183,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(.separator())
 
+        let manage = NSMenuItem(title: "Gérer les profils…", action: #selector(openManager), keyEquivalent: "")
+        manage.target = self
+        manage.image = Self.symbol("rectangle.stack")
+        menu.addItem(manage)
+
         let capture = NSMenuItem(
             title: "Enregistrer le Dock actuel comme nouveau profil…",
             action: #selector(captureCurrentDock),
             keyEquivalent: "n"
         )
         capture.target = self
+        capture.image = Self.symbol("plus.circle")
         menu.addItem(capture)
 
         let update = NSMenuItem(
@@ -199,27 +205,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         )
         update.target = self
         update.isEnabled = store.activeProfile != nil
+        update.image = Self.symbol("arrow.triangle.2.circlepath")
         menu.addItem(update)
 
         menu.addItem(.separator())
 
         let settingsMenu = NSMenu(title: "Réglages")
 
-        let manage = NSMenuItem(title: "Gérer les profils…", action: #selector(openManager), keyEquivalent: "")
-        manage.target = self
-        settingsMenu.addItem(manage)
-
         let settings = NSMenuItem(title: "Réglages de Docko…", action: #selector(openSettings), keyEquivalent: ",")
         settings.target = self
+        settings.image = Self.symbol("gearshape")
         settingsMenu.addItem(settings)
 
         let dockSettings = NSMenuItem(title: "Réglages du Dock…", action: #selector(openDockSettings), keyEquivalent: "")
         dockSettings.target = self
+        dockSettings.image = Self.symbol("dock.rectangle")
         settingsMenu.addItem(dockSettings)
 
         let restart = NSMenuItem(title: "Relancer le Dock", action: #selector(restartDock), keyEquivalent: "")
         restart.target = self
         restart.toolTip = "Utile si le Dock reste affiché ou ne réagit plus à ses réglages."
+        restart.image = Self.symbol("arrow.clockwise")
         settingsMenu.addItem(restart)
 
         settingsMenu.addItem(.separator())
@@ -231,6 +237,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             launch.state = .mixed
             launch.toolTip = "En attente d'autorisation dans Réglages Système › Général › Ouverture."
         }
+        launch.image = Self.symbol("power")
         settingsMenu.addItem(launch)
 
         let showName = NSMenuItem(
@@ -240,21 +247,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         )
         showName.target = self
         showName.state = store.showsNameInMenuBar ? .on : .off
+        showName.image = Self.symbol("textformat")
         settingsMenu.addItem(showName)
 
         let showDock = NSMenuItem(title: "Afficher Docko dans le Dock", action: #selector(toggleShowsInDock), keyEquivalent: "")
         showDock.target = self
         showDock.state = store.showsInDock ? .on : .off
+        showDock.image = Self.symbol("app.badge")
         settingsMenu.addItem(showDock)
 
         let settingsItem = NSMenuItem(title: "Réglages", action: nil, keyEquivalent: "")
         settingsItem.submenu = settingsMenu
+        settingsItem.image = Self.symbol("slider.horizontal.3")
         menu.addItem(settingsItem)
 
         menu.addItem(.separator())
 
         let quit = NSMenuItem(title: "Quitter Docko", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        quit.image = Self.symbol("xmark.square")
         menu.addItem(quit)
+    }
+
+    /// Symbole SF pour une entrée de menu, à la taille des menus système.
+    private static func symbol(_ name: String) -> NSImage? {
+        let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)
+        return image?.withSymbolConfiguration(.init(pointSize: 13, weight: .regular))
     }
 
     private func refreshStatusTitle() {
