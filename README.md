@@ -29,7 +29,9 @@ make install    # copie dans /Applications
 
 Le `.app` est signé ad hoc. Pour que « Lancer au démarrage » et le schéma d'URL fonctionnent de manière fiable, installe l'app dans `/Applications` et lance-la au moins une fois.
 
-Icône optionnelle : place un `Resources/AppIcon.png` (1024×1024) puis `make icon` avant `make`.
+Au lancement, Docko n'ouvre pas de fenêtre et n'apparaît pas dans le Dock : cherche son icône dans la barre des menus, en haut à droite (sur un MacBook avec encoche, elle peut être masquée si la barre est pleine). Au tout premier lancement, sans profil, la fenêtre de gestion s'ouvre d'elle-même ; relancer l'app alors qu'elle tourne déjà la rouvre aussi.
+
+L'icône de l'app est dans `Resources/AppIcon.icns`, générée depuis `Resources/AppIcon.png` (1024×1024) avec `make icon` ; à refaire seulement si le PNG change.
 
 ## Bascule automatique avec un mode de concentration
 

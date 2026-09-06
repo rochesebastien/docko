@@ -41,6 +41,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.storeDidChange() }
             .store(in: &cancellables)
+
+        // Sans fenêtre ni icône dans le Dock, un premier lancement serait invisible :
+        // on ouvre la fenêtre de gestion tant qu'aucun profil n'existe.
+        if store.profiles.isEmpty {
+            showManager()
+        }
+    }
+
+    /// Relancer l'app (double-clic dans le Finder, `open`) alors qu'elle tourne déjà :
+    /// on montre la fenêtre de gestion plutôt que de ne rien faire.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showManager()
+        return false
     }
 
     private var registeredLeader: Shortcut?
