@@ -275,7 +275,9 @@ struct ProfileEditorView: View {
 
     private var footer: some View {
         HStack {
-            Text("Applique le profil pour remplacer les apps épinglées du Dock. Les dossiers et les réglages du Dock ne bougent pas.")
+            Text(profile.dockSettings == nil
+                 ? "Applique le profil pour remplacer les apps épinglées du Dock. Les dossiers et les réglages du Dock ne bougent pas."
+                 : "Applique le profil pour remplacer les apps épinglées et les réglages du Dock. Les dossiers ne bougent pas.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)

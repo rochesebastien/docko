@@ -63,6 +63,7 @@ struct ManagerView: View {
 
     private var sidebar: some View {
         VStack(spacing: 0) {
+            sidebarHeader
             List(selection: $selection) {
                 Section {
                     ForEach(store.profiles) { profile in
@@ -82,6 +83,23 @@ struct ManagerView: View {
             sidebarFooter
         }
         .background(.thinMaterial)
+    }
+
+    /// Identité de l'app au-dessus de la liste, sous les boutons de fenêtre.
+    private var sidebarHeader: some View {
+        HStack(spacing: 10) {
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 30, height: 30)
+                .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+            Text("Docko")
+                .font(.headline)
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 6)
+        .padding(.bottom, 10)
     }
 
     private var sidebarFooter: some View {
