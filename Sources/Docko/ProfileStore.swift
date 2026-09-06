@@ -19,6 +19,8 @@ final class ProfileStore: ObservableObject {
     @Published var profiles: [DockProfile] = [] { didSet { save() } }
     @Published var activeProfileID: UUID? = nil { didSet { save() } }
     @Published var showsNameInMenuBar: Bool = false { didSet { save() } }
+    /// Icône dans le Dock (et point « en cours d'exécution »), en plus de la barre des menus.
+    @Published var showsInDock: Bool = false { didSet { save() } }
     /// Préférence utilisateur. L'état réel côté macOS est géré par `LoginItemService`.
     @Published var launchAtLogin: Bool = false { didSet { save() } }
     /// Déclencheur des raccourcis globaux (⌘D par défaut).
@@ -29,13 +31,15 @@ final class ProfileStore: ObservableObject {
         var profiles: [DockProfile]
         var activeProfileID: UUID?
         var showsNameInMenuBar: Bool
+        var showsInDock: Bool
         var launchAtLogin: Bool
         var leaderShortcut: Shortcut
 
-        init(profiles: [DockProfile], activeProfileID: UUID?, showsNameInMenuBar: Bool, launchAtLogin: Bool, leaderShortcut: Shortcut) {
+        init(profiles: [DockProfile], activeProfileID: UUID?, showsNameInMenuBar: Bool, showsInDock: Bool, launchAtLogin: Bool, leaderShortcut: Shortcut) {
             self.profiles = profiles
             self.activeProfileID = activeProfileID
             self.showsNameInMenuBar = showsNameInMenuBar
+            self.showsInDock = showsInDock
             self.launchAtLogin = launchAtLogin
             self.leaderShortcut = leaderShortcut
         }
@@ -47,6 +51,7 @@ final class ProfileStore: ObservableObject {
             profiles = try c.decodeIfPresent([DockProfile].self, forKey: .profiles) ?? []
             activeProfileID = try c.decodeIfPresent(UUID.self, forKey: .activeProfileID)
             showsNameInMenuBar = try c.decodeIfPresent(Bool.self, forKey: .showsNameInMenuBar) ?? false
+            showsInDock = try c.decodeIfPresent(Bool.self, forKey: .showsInDock) ?? false
             launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
             leaderShortcut = try c.decodeIfPresent(Shortcut.self, forKey: .leaderShortcut) ?? .defaultLeader
         }
@@ -100,7 +105,8 @@ final class ProfileStore: ObservableObject {
         let profile = DockProfile(
             name: uniqueName(name),
             colorHex: DockProfile.nextColor(after: profiles),
-            items: DockService.currentItems()
+            items: DockService.currentItems(),
+            dockSettings: DockService.currentSettings()
         )
         profiles.append(profile)
         activeProfileID = profile.id
@@ -114,10 +120,26 @@ final class ProfileStore: ObservableObject {
         return profile
     }
 
+    /// Remplace les éléments par ceux du Dock actuel, et rafraîchit les réglages si le profil les inclut.
     func replaceItemsWithCurrentDock(id: UUID) {
         guard let index = profiles.firstIndex(where: { $0.id == id }) else { return }
         profiles[index].items = DockService.currentItems()
+        if profiles[index].dockSettings != nil {
+            profiles[index].dockSettings = DockService.currentSettings()
+        }
         activeProfileID = id
+    }
+
+    /// Mémorise les réglages actuels du Dock dans le profil.
+    func captureDockSettings(id: UUID) {
+        guard let index = profiles.firstIndex(where: { $0.id == id }) else { return }
+        profiles[index].dockSettings = DockService.currentSettings()
+    }
+
+    /// Le profil cesse de toucher aux réglages du Dock.
+    func removeDockSettings(id: UUID) {
+        guard let index = profiles.firstIndex(where: { $0.id == id }) else { return }
+        profiles[index].dockSettings = nil
     }
 
     func update(_ profile: DockProfile) {
@@ -153,7 +175,7 @@ final class ProfileStore: ObservableObject {
     /// Applique le profil au Dock (écrit les préférences et relance le Dock).
     func apply(id: UUID) throws {
         guard let profile = profile(id: id) else { throw ProfileStoreError.profileNotFound }
-        try DockService.apply(profile.items)
+        try DockService.apply(profile.items, settings: profile.dockSettings)
         activeProfileID = id
     }
 
@@ -211,6 +233,7 @@ final class ProfileStore: ObservableObject {
         profiles = persisted.profiles
         activeProfileID = persisted.activeProfileID
         showsNameInMenuBar = persisted.showsNameInMenuBar
+        showsInDock = persisted.showsInDock
         launchAtLogin = persisted.launchAtLogin
         leaderShortcut = persisted.leaderShortcut
     }
@@ -221,6 +244,7 @@ final class ProfileStore: ObservableObject {
             profiles: profiles,
             activeProfileID: activeProfileID,
             showsNameInMenuBar: showsNameInMenuBar,
+            showsInDock: showsInDock,
             launchAtLogin: launchAtLogin,
             leaderShortcut: leaderShortcut
         )
