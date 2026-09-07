@@ -21,6 +21,7 @@ struct ProfileEditorView: View {
             header
             preview
             dockSettingsSection
+            wallpaperSection
             items
             footer
         }
@@ -199,6 +200,56 @@ struct ProfileEditorView: View {
         }
     }
 
+    // MARK: - Fond d'écran
+
+    private var wallpaperSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionLabel(text: "Fond d'écran")
+            HStack(spacing: 12) {
+                if let path = profile.wallpaperPath {
+                    WallpaperThumbnail(path: path, size: CGSize(width: 64, height: 40))
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 8) {
+                            Text(URL(fileURLWithPath: path).lastPathComponent)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            if !profile.wallpaperExistsOnDisk {
+                                Pill(text: "Introuvable", systemImage: "exclamationmark.triangle.fill", style: .neutral)
+                                    .help("Image introuvable sur le disque")
+                            }
+                        }
+                        Text("Appliqué avec le profil sur tous les écrans, dans le bureau affiché.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 8)
+                    Button("Changer…") { chooseWallpaper() }
+                        .help("Choisir une autre image")
+                    Button("Retirer") { store.removeWallpaper(id: profile.id) }
+                        .help("Ce profil ne touchera plus au fond d'écran")
+                } else {
+                    Image(systemName: "photo")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 24)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Ce profil ne modifie pas le fond d'écran")
+                        Text("Choisis une image pour qu'elle soit appliquée en même temps que le Dock.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 8)
+                    Button("Mémoriser le fond actuel") { captureCurrentWallpaper() }
+                        .help("Utiliser l'image actuellement affichée sur l'écran principal")
+                    Button("Choisir une image…") { chooseWallpaper() }
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .card()
+        }
+    }
+
     // MARK: - Éléments
 
     private var items: some View {
@@ -273,11 +324,22 @@ struct ProfileEditorView: View {
 
     // MARK: - Pied
 
+    private var footerText: String {
+        var changes = ["les apps épinglées"]
+        if profile.dockSettings != nil { changes.append("les réglages du Dock") }
+        if profile.wallpaperPath != nil { changes.append("le fond d'écran") }
+        let joined = changes.count == 1
+            ? changes[0]
+            : changes.dropLast().joined(separator: ", ") + " et " + changes.last!
+        let untouched = profile.dockSettings == nil
+            ? "Les dossiers et les réglages du Dock ne bougent pas."
+            : "Les dossiers ne bougent pas."
+        return "Applique le profil pour remplacer \(joined). \(untouched)"
+    }
+
     private var footer: some View {
         HStack {
-            Text(profile.dockSettings == nil
-                 ? "Applique le profil pour remplacer les apps épinglées du Dock. Les dossiers et les réglages du Dock ne bougent pas."
-                 : "Applique le profil pour remplacer les apps épinglées et les réglages du Dock. Les dossiers ne bougent pas.")
+            Text(footerText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
@@ -314,11 +376,73 @@ struct ProfileEditorView: View {
         }
     }
 
+    private func chooseWallpaper() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = WallpaperService.allowedContentTypes
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.message = "Choisis l'image à appliquer comme fond d'écran avec ce profil."
+        panel.prompt = "Choisir"
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try store.setWallpaper(id: profile.id, imageURL: url)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func captureCurrentWallpaper() {
+        do {
+            let captured = try store.captureCurrentWallpaper(id: profile.id)
+            if !captured {
+                errorMessage = "Le fond d'écran actuel n'est pas un fichier image (fond dynamique, couleur unie…). Choisis une image à la place."
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     private func applyProfile() {
         do {
             try store.apply(id: profile.id)
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+}
+
+// MARK: - Vignette de fond d'écran
+
+/// Vignette d'une image, décodée en arrière-plan à taille réduite.
+struct WallpaperThumbnail: View {
+    let path: String
+    let size: CGSize
+
+    @State private var image: NSImage?
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Theme.surfaceRaised)
+            if let image {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Image(systemName: "photo")
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .frame(width: size.width, height: size.height)
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(Theme.border))
+        .task(id: path) {
+            let path = path
+            image = await Task.detached(priority: .utility) {
+                WallpaperService.thumbnail(path: path)
+            }.value
         }
     }
 }

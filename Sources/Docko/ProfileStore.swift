@@ -142,14 +142,48 @@ final class ProfileStore: ObservableObject {
         profiles[index].dockSettings = nil
     }
 
+    /// Associe l'image au profil (copiée dans le dossier de Docko si nécessaire).
+    func setWallpaper(id: UUID, imageURL: URL) throws {
+        guard let index = profiles.firstIndex(where: { $0.id == id }) else { return }
+        let path = try WallpaperService.store(imageURL)
+        let previous = profiles[index].wallpaperPath
+        profiles[index].wallpaperPath = path
+        discardWallpaperIfUnused(previous)
+    }
+
+    /// Mémorise le fond d'écran actuel de l'écran principal dans le profil.
+    /// Renvoie false si le fond actuel n'est pas un fichier image (fond dynamique, couleur…).
+    @discardableResult
+    func captureCurrentWallpaper(id: UUID) throws -> Bool {
+        guard let current = WallpaperService.currentImagePath() else { return false }
+        try setWallpaper(id: id, imageURL: URL(fileURLWithPath: current))
+        return true
+    }
+
+    /// Le profil cesse de toucher au fond d'écran.
+    func removeWallpaper(id: UUID) {
+        guard let index = profiles.firstIndex(where: { $0.id == id }) else { return }
+        let previous = profiles[index].wallpaperPath
+        profiles[index].wallpaperPath = nil
+        discardWallpaperIfUnused(previous)
+    }
+
+    /// Supprime la copie locale d'une image si plus aucun profil ne s'en sert.
+    private func discardWallpaperIfUnused(_ path: String?) {
+        guard let path, !profiles.contains(where: { $0.wallpaperPath == path }) else { return }
+        WallpaperService.discard(path)
+    }
+
     func update(_ profile: DockProfile) {
         guard let index = profiles.firstIndex(where: { $0.id == profile.id }) else { return }
         profiles[index] = profile
     }
 
     func delete(id: UUID) {
+        let wallpaper = profile(id: id)?.wallpaperPath
         profiles.removeAll { $0.id == id }
         if activeProfileID == id { activeProfileID = nil }
+        discardWallpaperIfUnused(wallpaper)
     }
 
     @discardableResult
@@ -172,11 +206,16 @@ final class ProfileStore: ObservableObject {
         profiles.move(fromOffsets: source, toOffset: destination)
     }
 
-    /// Applique le profil au Dock (écrit les préférences et relance le Dock).
+    /// Applique le profil : écrit les préférences du Dock, le relance, puis change
+    /// le fond d'écran si le profil en a un. Le profil est marqué actif dès que le Dock
+    /// est appliqué, même si le fond d'écran échoue ensuite.
     func apply(id: UUID) throws {
         guard let profile = profile(id: id) else { throw ProfileStoreError.profileNotFound }
         try DockService.apply(profile.items, settings: profile.dockSettings)
         activeProfileID = id
+        if let wallpaperPath = profile.wallpaperPath {
+            try WallpaperService.apply(path: wallpaperPath)
+        }
     }
 
     /// Applique le profil suivant dans la liste (boucle sur le premier).

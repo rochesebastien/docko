@@ -2,7 +2,7 @@
 
 Des profils de Dock macOS, changeables depuis la barre des menus.
 
-Un profil enregistre les **apps épinglées** et les **espaceurs** du Dock, et, si tu le souhaites, ses **réglages** (taille, agrandissement au survol, masquage automatique, position, effet de réduction, apps récentes…). Docko ne touche ni aux dossiers, ni aux apps récentes, et n'ouvre ni ne ferme aucune application. Tout est stocké en local, aucun compte.
+Un profil enregistre les **apps épinglées** et les **espaceurs** du Dock, et, si tu le souhaites, ses **réglages** (taille, agrandissement au survol, masquage automatique, position, effet de réduction, apps récentes…) et un **fond d'écran**. Docko ne touche ni aux dossiers, ni aux apps récentes, et n'ouvre ni ne ferme aucune application. Tout est stocké en local, aucun compte.
 
 ## Fonctionnalités
 
@@ -10,6 +10,7 @@ Un profil enregistre les **apps épinglées** et les **espaceurs** du Dock, et, 
 - Raccourcis globaux en séquence : ⌘D puis la touche du profil (1 à 9 par défaut), depuis n'importe quelle app. Déclencheur et touches modifiables dans Réglages…
 - Enregistrer le Dock actuel comme nouveau profil (apps et réglages), ou mettre à jour le profil actif depuis le Dock actuel. Les réglages du Dock peuvent être retirés d'un profil pour qu'il ne change que les apps.
 - Fenêtre de gestion : renommer, colorer, réordonner les apps par glisser-déposer, ajouter des apps ou des espaceurs, supprimer, dupliquer.
+- Fond d'écran optionnel par profil : choisis une image (ou mémorise le fond actuel), elle est appliquée à tous les écrans en même temps que le Dock. Limite macOS : seul le bureau affiché de chaque écran change, pas les autres Spaces ; les fonds dynamiques du système (aériens, couleurs) ne sont pas des images et ne peuvent pas être mémorisés.
 - Import / export des profils en JSON.
 - Lancement au démarrage (élément d'ouverture de session macOS, réappliqué à chaque lancement), affichage optionnel du nom du profil actif dans la barre, icône optionnelle dans le Dock.
 - Schéma d'URL `docko://` pour piloter Docko depuis Raccourcis (bascule automatique avec les modes de concentration).
@@ -58,6 +59,8 @@ Depuis un terminal : `open "docko://apply?name=Travail"`.
 
 Docko lit et écrit la clé `persistent-apps` du domaine de préférences `com.apple.dock` via CFPreferences, puis relance le Dock (`killall Dock`). C'est la même approche que `dockutil`. L'app n'est donc pas sandboxée et ne peut pas être distribuée sur le Mac App Store telle quelle.
 
+Le fond d'écran passe par `NSWorkspace.setDesktopImageURL`, appliqué à chaque écran après la relance du Dock. Les images choisies sont copiées dans `~/Library/Application Support/Docko/Wallpapers/` pour que le profil survive au déplacement du fichier d'origine (les images système de `/System/Library/Desktop Pictures` sont référencées telles quelles). Un export JSON contient le chemin de l'image, pas l'image elle-même.
+
 Les profils sont stockés dans `~/Library/Application Support/Docko/profiles.json`.
 
 ## Structure
@@ -68,6 +71,7 @@ Sources/Docko/
   main.swift                   Point d'entrée AppKit
   AppDelegate.swift            Status item, menu, schéma d'URL, fenêtre
   DockService.swift            Lecture/écriture de com.apple.dock, redémarrage du Dock
+  WallpaperService.swift       Copie et application du fond d'écran d'un profil
   ProfileStore.swift           Modèle observable + persistance JSON + import/export
   Models.swift                 DockProfile, DockItem
   ManagerView.swift            Fenêtre de gestion (SwiftUI)
