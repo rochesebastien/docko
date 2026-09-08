@@ -17,6 +17,8 @@ struct ProfileEditorView: View {
     private var spacerCount: Int { profile.items.filter(\.isSpacer).count }
 
     @State private var hoveringWallpaper = false
+    /// Libellé du bouton de la vignette sous la souris, affiché sous les boutons.
+    @State private var hoveredWallpaperAction: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -239,19 +241,28 @@ struct ProfileEditorView: View {
 
             if hoveringWallpaper {
                 Self.wallpaperTileShape
-                    .fill(.black.opacity(profile.wallpaperPath == nil ? 0.15 : 0.5))
-                HStack(spacing: 6) {
-                    wallpaperAction("photo.on.rectangle.angled", help: profile.wallpaperPath == nil ? "Choisir une image…" : "Changer d'image…") {
-                        chooseWallpaper()
-                    }
-                    wallpaperAction("camera.viewfinder", help: "Mémoriser le fond d'écran actuel") {
-                        captureCurrentWallpaper()
-                    }
-                    if profile.wallpaperPath != nil {
-                        wallpaperAction("trash", help: "Retirer : le profil ne touchera plus au fond d'écran") {
-                            store.removeWallpaper(id: profile.id)
+                    .fill(.black.opacity(profile.wallpaperPath == nil ? 0.15 : 0.55))
+                VStack(spacing: 6) {
+                    HStack(spacing: 6) {
+                        wallpaperAction("photo.on.rectangle.angled", label: profile.wallpaperPath == nil ? "Choisir une image" : "Changer d'image") {
+                            chooseWallpaper()
+                        }
+                        wallpaperAction("camera.viewfinder", label: "Mémoriser le fond actuel") {
+                            captureCurrentWallpaper()
+                        }
+                        if profile.wallpaperPath != nil {
+                            wallpaperAction("trash", label: "Retirer du profil") {
+                                store.removeWallpaper(id: profile.id)
+                            }
                         }
                     }
+                    // Le libellé suit la souris ; sans bouton survolé, il rappelle ce qu'est la zone.
+                    Text(hoveredWallpaperAction ?? "Fond d'écran")
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(profile.wallpaperPath == nil ? Color.primary : Color.white)
+                        .shadow(color: .black.opacity(profile.wallpaperPath == nil ? 0 : 0.6), radius: 2)
+                        .lineLimit(1)
+                        .contentTransition(.opacity)
                 }
             }
         }
@@ -262,25 +273,26 @@ struct ProfileEditorView: View {
         .contentShape(Self.wallpaperTileShape)
         .onHover { inside in
             hoveringWallpaper = inside
-            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop(); hoveredWallpaperAction = nil }
         }
         .animation(.easeOut(duration: 0.12), value: hoveringWallpaper)
-        .help(profile.wallpaperPath == nil
-              ? "Aucun fond d'écran. Survole pour en choisir un, il sera appliqué avec le profil."
-              : "Fond d'écran appliqué avec le profil, sur tous les écrans.")
     }
 
-    /// Bouton rond blanc sur le voile de la vignette.
-    private func wallpaperAction(_ symbol: String, help: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+    /// Bouton rond blanc sur le voile de la vignette ; son libellé s'affiche sous la rangée au survol.
+    private func wallpaperAction(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
+        let highlighted = hoveredWallpaperAction == label
+        return Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.black.opacity(0.8))
                 .frame(width: 26, height: 26)
-                .background(.white.opacity(0.92), in: Circle())
+                .background(.white.opacity(highlighted ? 1 : 0.85), in: Circle())
+                .scaleEffect(highlighted ? 1.08 : 1)
         }
         .buttonStyle(.plain)
-        .help(help)
+        .onHover { hoveredWallpaperAction = $0 ? label : (hoveredWallpaperAction == label ? nil : hoveredWallpaperAction) }
+        .animation(.easeOut(duration: 0.1), value: highlighted)
+        .accessibilityLabel(label)
     }
 
     // MARK: - Éléments
