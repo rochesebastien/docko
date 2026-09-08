@@ -27,6 +27,13 @@ struct DockItem: Codable, Identifiable, Hashable {
 
     var isSpacer: Bool { kind != .app }
 
+    /// Ce qui compte pour comparer deux Docks : le type et le chemin, pas l'identifiant interne.
+    var signature: String {
+        var normalized = path ?? ""
+        while normalized.hasSuffix("/") { normalized.removeLast() }
+        return "\(kind.rawValue):\(normalized)"
+    }
+
     var displayName: String {
         switch kind {
         case .app:

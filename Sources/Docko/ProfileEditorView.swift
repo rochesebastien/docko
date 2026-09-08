@@ -20,6 +20,7 @@ struct ProfileEditorView: View {
     /// Réglages actuels du Dock, relus régulièrement pour signaler un écart sans attendre
     /// un changement de fenêtre. Huit clés de préférences : le coût est négligeable.
     @State private var currentDockSettings: DockSettings?
+    @State private var currentDockItems: [DockItem]?
     private let dockSettingsPoll = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
     /// Libellé du bouton de la vignette sous la souris, affiché sous les boutons.
     @State private var hoveredWallpaperAction: String?
@@ -45,9 +46,10 @@ struct ProfileEditorView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Theme.canvas)
-        .onAppear { refreshCurrentDockSettings() }
-        .onReceive(dockSettingsPoll) { _ in refreshCurrentDockSettings() }
-        .onChange(of: profile.dockSettings) { _ in refreshCurrentDockSettings() }
+        .onAppear { refreshDockState() }
+        .onReceive(dockSettingsPoll) { _ in refreshDockState() }
+        .onChange(of: profile.dockSettings) { _ in refreshDockState() }
+        .onChange(of: profile.items) { _ in refreshDockState() }
         .alert("Docko", isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
@@ -174,9 +176,16 @@ struct ProfileEditorView: View {
     // MARK: - Réglages du Dock
 
     /// Vrai si le Dock actuel diffère des réglages mémorisés dans le profil.
+    /// Seulement pour le profil actif : un autre profil diffère du Dock par définition.
     private var dockSettingsOutdated: Bool {
-        guard let saved = profile.dockSettings, let current = currentDockSettings else { return false }
+        guard isActive, let saved = profile.dockSettings, let current = currentDockSettings else { return false }
         return saved != current
+    }
+
+    /// Vrai si les apps épinglées du Dock (type et chemin, dans l'ordre) diffèrent du profil actif.
+    private var itemsOutdated: Bool {
+        guard isActive, let current = currentDockItems else { return false }
+        return current.map(\.signature) != profile.items.map(\.signature)
     }
 
     private var dockSettingsSection: some View {
@@ -336,6 +345,25 @@ struct ProfileEditorView: View {
             )
 
             VStack(spacing: 0) {
+                if itemsOutdated {
+                    HStack(spacing: 10) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .foregroundStyle(Color.accentColor)
+                        Text("Le Dock actuel ne correspond plus à ce profil : apps déplacées, ajoutées ou retirées.")
+                            .font(.callout)
+                            .lineLimit(2)
+                        Spacer(minLength: 8)
+                        Button("Mettre à jour") { confirmReplace = true }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                            .help("Remplacer les éléments du profil par ceux du Dock actuel")
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.accentColor.opacity(0.10))
+                    Divider()
+                }
+
                 if profile.items.isEmpty {
                     EmptyState(
                         systemImage: "square.dashed",
@@ -492,13 +520,16 @@ struct ProfileEditorView: View {
         } catch {
             errorMessage = error.localizedDescription
         }
-        refreshCurrentDockSettings()
+        refreshDockState()
     }
 
-    private func refreshCurrentDockSettings() {
+    /// Relit réglages et apps épinglées du Dock. Ne publie que ce qui change, pour ne pas
+    /// redessiner l'éditeur toutes les deux secondes.
+    private func refreshDockState() {
         let settings = DockService.currentSettings()
-        // Ne publie que si ça change : évite de redessiner la carte toutes les deux secondes.
         if settings != currentDockSettings { currentDockSettings = settings }
+        let items = DockService.currentItems()
+        if items.map(\.signature) != currentDockItems?.map(\.signature) { currentDockItems = items }
     }
 }
 
