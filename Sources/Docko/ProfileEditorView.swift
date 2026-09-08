@@ -17,8 +17,10 @@ struct ProfileEditorView: View {
     private var spacerCount: Int { profile.items.filter(\.isSpacer).count }
 
     @State private var hoveringWallpaper = false
-    /// Réglages actuels du Dock, relus à l'apparition et quand l'app repasse au premier plan.
+    /// Réglages actuels du Dock, relus régulièrement pour signaler un écart sans attendre
+    /// un changement de fenêtre. Huit clés de préférences : le coût est négligeable.
     @State private var currentDockSettings: DockSettings?
+    private let dockSettingsPoll = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
     /// Libellé du bouton de la vignette sous la souris, affiché sous les boutons.
     @State private var hoveredWallpaperAction: String?
 
@@ -43,10 +45,9 @@ struct ProfileEditorView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Theme.canvas)
-        .onAppear { currentDockSettings = DockService.currentSettings() }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            currentDockSettings = DockService.currentSettings()
-        }
+        .onAppear { refreshCurrentDockSettings() }
+        .onReceive(dockSettingsPoll) { _ in refreshCurrentDockSettings() }
+        .onChange(of: profile.dockSettings) { _ in refreshCurrentDockSettings() }
         .alert("Docko", isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
@@ -491,6 +492,13 @@ struct ProfileEditorView: View {
         } catch {
             errorMessage = error.localizedDescription
         }
+        refreshCurrentDockSettings()
+    }
+
+    private func refreshCurrentDockSettings() {
+        let settings = DockService.currentSettings()
+        // Ne publie que si ça change : évite de redessiner la carte toutes les deux secondes.
+        if settings != currentDockSettings { currentDockSettings = settings }
     }
 }
 
