@@ -63,7 +63,7 @@ struct SectionLabel: View {
 
 // MARK: - Pastilles
 
-/// Petite capsule d'état : « Appliqué », « ⌘D puis 1 »…
+/// Petite capsule d'état : « Appliqué », « ⌃⌥1 »…
 struct Pill: View {
     enum Style {
         case neutral

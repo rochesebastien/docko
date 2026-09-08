@@ -11,8 +11,7 @@ struct SettingsView: View {
             header
             Form {
                 generalSection
-                leaderSection
-                profileKeysSection
+                profileShortcutsSection
                 commandsSection
             }
             .formStyle(.grouped)
@@ -65,90 +64,70 @@ struct SettingsView: View {
             }
             Toggle("Afficher le nom du profil dans la barre des menus", isOn: $store.showsNameInMenuBar)
             Toggle("Afficher Docko dans le Dock", isOn: $store.showsInDock)
+                .help("Icône et point « en cours d'exécution » dans le Dock, présence dans ⌘⇥")
         } header: {
             Text("Général")
-        } footer: {
-            Text("Avec l'icône dans le Dock, Docko se comporte comme une app ordinaire : point sous l'icône quand elle tourne, présence dans ⌘⇥. Sinon elle ne vit que dans la barre des menus.")
         }
     }
 
-    private var leaderSection: some View {
+    private var profileShortcutsSection: some View {
         Section {
-            HStack {
-                Text("Déclencheur")
-                Spacer()
-                ShortcutRecorder(shortcut: leaderBinding, placeholder: "⌘D", requiresModifiers: true)
-                Button("Réinitialiser") { setLeader(.defaultLeader) }
-                    .disabled(store.leaderShortcut == .defaultLeader)
-            }
-        } header: {
-            Text("Changer de profil")
-        } footer: {
-            Text("Appuie sur le déclencheur, puis sur la touche du profil dans les deux secondes. Les raccourcis fonctionnent dans toutes les applications.")
-        }
-    }
-
-    private var profileKeysSection: some View {
-        Section("Touche par profil") {
             if store.profiles.isEmpty {
                 Text("Aucun profil.").foregroundStyle(.secondary)
             }
-            ForEach(Array(store.profiles.enumerated()), id: \.element.id) { index, profile in
-                HStack(spacing: 10) {
+            ForEach(store.profiles) { profile in
+                shortcutRow(
+                    title: profile.name,
+                    shortcut: hotkeyBinding(for: profile.id),
+                    onClear: { setHotkey(nil, for: profile.id) }
+                ) {
                     ColorSwatch(hex: profile.colorHex, size: 12)
-                    Text(profile.name)
-                        .lineLimit(1)
-                    Spacer()
-                    Text(store.leaderShortcut.display + " puis")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                    ShortcutRecorder(
-                        shortcut: hotkeyBinding(for: profile.id),
-                        placeholder: Shortcut.digit(index + 1)?.display ?? "—",
-                        requiresModifiers: false
-                    )
-                    Button {
-                        setHotkey(nil, for: profile.id)
-                    } label: {
-                        Image(systemName: "arrow.uturn.backward")
-                    }
-                    .buttonStyle(.borderless)
-                    .help("Revenir à la touche par défaut")
-                    .disabled(profile.hotkey == nil)
+                        .frame(width: 18)
                 }
             }
+        } header: {
+            Text("Appliquer un profil")
         }
     }
 
     private var commandsSection: some View {
         Section {
             ForEach(AppCommand.allCases) { command in
-                HStack(spacing: 10) {
+                shortcutRow(
+                    title: command.shortTitle,
+                    shortcut: commandBinding(for: command),
+                    onClear: { setCommandShortcut(nil, for: command) }
+                ) {
                     Image(systemName: command.symbol)
                         .foregroundStyle(.secondary)
                         .frame(width: 18)
-                    Text(command.shortTitle)
-                        .lineLimit(1)
-                    Spacer()
-                    ShortcutRecorder(
-                        shortcut: commandBinding(for: command),
-                        placeholder: "Aucun",
-                        requiresModifiers: true
-                    )
-                    Button {
-                        setCommandShortcut(nil, for: command)
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                    }
-                    .buttonStyle(.borderless)
-                    .help("Retirer le raccourci")
-                    .disabled(store.shortcut(for: command) == nil)
                 }
             }
         } header: {
             Text("Commandes")
-        } footer: {
-            Text("Raccourcis globaux, actifs dans toutes les applications, avec au moins un modificateur (⌘, ⌥, ⌃ ou ⇧). Ils apparaissent aussi dans le menu de la barre.")
+        }
+    }
+
+    /// Ligne « icône, libellé, enregistreur, effacer ». Les raccourcis sont globaux et
+    /// exigent un modificateur ; l'enregistreur refuse une touche seule.
+    private func shortcutRow<Leading: View>(
+        title: String,
+        shortcut: Binding<Shortcut?>,
+        onClear: @escaping () -> Void,
+        @ViewBuilder leading: () -> Leading
+    ) -> some View {
+        HStack(spacing: 10) {
+            leading()
+            Text(title)
+                .lineLimit(1)
+            Spacer()
+            ShortcutRecorder(shortcut: shortcut, placeholder: "Aucun", requiresModifiers: true)
+            Button(action: onClear) {
+                Image(systemName: "xmark.circle.fill")
+            }
+            .buttonStyle(.borderless)
+            .help("Retirer le raccourci")
+            .disabled(shortcut.wrappedValue == nil)
         }
     }
 
@@ -169,21 +148,6 @@ struct SettingsView: View {
         )
     }
 
-    private var leaderBinding: Binding<Shortcut?> {
-        Binding(
-            get: { store.leaderShortcut },
-            set: { if let shortcut = $0 { setLeader(shortcut) } }
-        )
-    }
-
-    private func setLeader(_ shortcut: Shortcut) {
-        do {
-            try store.setLeaderShortcut(shortcut)
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
     private func hotkeyBinding(for id: UUID) -> Binding<Shortcut?> {
         Binding(
             get: { store.profile(id: id)?.hotkey },
@@ -192,9 +156,11 @@ struct SettingsView: View {
     }
 
     private func setHotkey(_ shortcut: Shortcut?, for id: UUID) {
-        guard var profile = store.profile(id: id) else { return }
-        profile.hotkey = shortcut
-        store.update(profile)
+        do {
+            try store.setHotkey(shortcut, forProfile: id)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     private func commandBinding(for command: AppCommand) -> Binding<Shortcut?> {
@@ -235,7 +201,7 @@ struct ShortcutRecorder: View {
         }
         .buttonStyle(.bordered)
         .tint(recording ? .accentColor : nil)
-        .help(requiresModifiers ? "Une touche avec ⌘, ⌥, ⌃ ou ⇧" : "Une touche seule, par exemple un chiffre")
+        .help(requiresModifiers ? "Clique puis appuie sur la combinaison, avec ⌘, ⌥, ⌃ ou ⇧. Échap annule." : "Clique puis appuie sur une touche. Échap annule.")
         .onDisappear { stop() }
     }
 

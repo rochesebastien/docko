@@ -3,27 +3,22 @@ import Foundation
 
 /// Raccourcis globaux via Carbon (aucune permission d'accessibilité requise).
 ///
-/// Fonctionnement en séquence : un déclencheur (⌘D par défaut) arme pendant un court
-/// délai les touches des profils, enregistrées sans modificateur. La touche pressée
-/// est renvoyée via `onChordKey`, puis tout est désarmé.
-///
-/// Les commandes de l'application (`AppCommand`) ont chacune un raccourci global
-/// optionnel, avec modificateurs, actif en permanence.
+/// Deux familles de raccourcis, chacun une combinaison complète avec modificateurs,
+/// active en permanence : un par profil (applique le profil) et un par commande
+/// de l'application (`AppCommand`).
 final class HotkeyManager {
-    var onLeader: (() -> Void)?
-    var onChordKey: ((UInt32) -> Void)?
+    var onProfile: ((UUID) -> Void)?
     var onCommand: ((AppCommand) -> Void)?
 
     private var handlerRef: EventHandlerRef?
-    private var leaderRef: EventHotKeyRef?
     private var commandRefs: [EventHotKeyRef] = []
-    private var chordRefs: [EventHotKeyRef] = []
-    private var chordCodes: [UInt32] = []
+    private var profileRefs: [EventHotKeyRef] = []
+    /// Profils enregistrés, dans l'ordre des identifiants Carbon `profileBase + index`.
+    private var profileIDs: [UUID] = []
 
     private let signature: OSType = 0x444F_434B // "DOCK"
-    private static let leaderID: UInt32 = 1
     private static let commandBase: UInt32 = 100
-    private static let chordBase: UInt32 = 1000
+    private static let profileBase: UInt32 = 1000
 
     init() {
         var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
@@ -54,31 +49,9 @@ final class HotkeyManager {
     }
 
     deinit {
-        unregisterLeader()
         unregisterCommands()
-        disarmChord()
+        unregisterProfiles()
         if let handlerRef { RemoveEventHandler(handlerRef) }
-    }
-
-    // MARK: - Déclencheur
-
-    func registerLeader(_ shortcut: Shortcut) {
-        unregisterLeader()
-        var ref: EventHotKeyRef?
-        let id = EventHotKeyID(signature: signature, id: Self.leaderID)
-        let status = RegisterEventHotKey(
-            shortcut.keyCode, shortcut.carbonModifiers, id, GetApplicationEventTarget(), 0, &ref
-        )
-        if status == noErr {
-            leaderRef = ref
-        } else {
-            NSLog("Docko: impossible d'enregistrer le raccourci \(shortcut.display) (\(status))")
-        }
-    }
-
-    func unregisterLeader() {
-        if let leaderRef { UnregisterEventHotKey(leaderRef) }
-        leaderRef = nil
     }
 
     // MARK: - Commandes
@@ -88,15 +61,8 @@ final class HotkeyManager {
         unregisterCommands()
         for (command, shortcut) in shortcuts {
             guard let index = AppCommand.allCases.firstIndex(of: command) else { continue }
-            var ref: EventHotKeyRef?
-            let id = EventHotKeyID(signature: signature, id: Self.commandBase + UInt32(index))
-            let status = RegisterEventHotKey(
-                shortcut.keyCode, shortcut.carbonModifiers, id, GetApplicationEventTarget(), 0, &ref
-            )
-            if status == noErr, let ref {
+            if let ref = register(shortcut, id: Self.commandBase + UInt32(index), label: command.shortTitle) {
                 commandRefs.append(ref)
-            } else {
-                NSLog("Docko: impossible d'enregistrer le raccourci \(shortcut.display) pour « \(command.shortTitle) » (\(status))")
             }
         }
     }
@@ -106,39 +72,49 @@ final class HotkeyManager {
         commandRefs = []
     }
 
-    // MARK: - Touches de profil
+    // MARK: - Profils
 
-    func armChord(keyCodes: [UInt32]) {
-        disarmChord()
-        for code in keyCodes where !chordCodes.contains(code) {
-            var ref: EventHotKeyRef?
-            let id = EventHotKeyID(signature: signature, id: Self.chordBase + UInt32(chordCodes.count))
-            let status = RegisterEventHotKey(code, 0, id, GetApplicationEventTarget(), 0, &ref)
-            guard status == noErr, let ref else { continue }
-            chordRefs.append(ref)
-            chordCodes.append(code)
+    /// Remplace tous les raccourcis de profils par ceux fournis (identifiant du profil → raccourci).
+    func registerProfiles(_ shortcuts: [(id: UUID, shortcut: Shortcut, name: String)]) {
+        unregisterProfiles()
+        for entry in shortcuts {
+            if let ref = register(entry.shortcut, id: Self.profileBase + UInt32(profileIDs.count), label: entry.name) {
+                profileRefs.append(ref)
+                profileIDs.append(entry.id)
+            }
         }
     }
 
-    func disarmChord() {
-        chordRefs.forEach { UnregisterEventHotKey($0) }
-        chordRefs = []
-        chordCodes = []
+    func unregisterProfiles() {
+        profileRefs.forEach { UnregisterEventHotKey($0) }
+        profileRefs = []
+        profileIDs = []
     }
 
-    var isChordArmed: Bool { !chordRefs.isEmpty }
+    // MARK: - Carbon
+
+    private func register(_ shortcut: Shortcut, id: UInt32, label: String) -> EventHotKeyRef? {
+        var ref: EventHotKeyRef?
+        let hotKeyID = EventHotKeyID(signature: signature, id: id)
+        let status = RegisterEventHotKey(
+            shortcut.keyCode, shortcut.carbonModifiers, hotKeyID, GetApplicationEventTarget(), 0, &ref
+        )
+        guard status == noErr, let ref else {
+            NSLog("Docko: impossible d'enregistrer le raccourci \(shortcut.display) pour « \(label) » (\(status))")
+            return nil
+        }
+        return ref
+    }
 
     private func handle(id: UInt32) {
-        if id == Self.leaderID {
-            onLeader?()
-        } else if id >= Self.commandBase, id < Self.chordBase {
+        if id >= Self.profileBase {
+            let index = Int(id - Self.profileBase)
+            guard index < profileIDs.count else { return }
+            onProfile?(profileIDs[index])
+        } else if id >= Self.commandBase {
             let index = Int(id - Self.commandBase)
             guard index < AppCommand.allCases.count else { return }
             onCommand?(AppCommand.allCases[index])
-        } else if id >= Self.chordBase {
-            let index = Int(id - Self.chordBase)
-            guard index < chordCodes.count else { return }
-            onChordKey?(chordCodes[index])
         }
     }
 }

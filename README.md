@@ -7,7 +7,7 @@ Un profil enregistre les **apps épinglées** et les **espaceurs** du Dock, et, 
 ## Fonctionnalités
 
 - Icône dans la barre des menus, sans icône dans le Dock. Un clic sur un profil l'applique.
-- Raccourcis globaux en séquence : ⌘D puis la touche du profil (1 à 9 par défaut), depuis n'importe quelle app. Chaque commande du menu (gérer les profils, enregistrer le Dock, profil suivant, relancer le Dock, quitter…) peut aussi recevoir son propre raccourci global. Tout se règle dans la fenêtre de gestion, entrée « Réglages » de la barre latérale.
+- Raccourcis clavier globaux, depuis n'importe quelle app : un par profil pour l'appliquer, et un par commande du menu (gérer les profils, enregistrer le Dock, profil suivant, relancer le Dock, quitter…). Chaque raccourci est une combinaison complète (⌃⌥1, ⌘⇧D…) que tu choisis ; aucun n'est défini par défaut. Tout se règle dans la fenêtre de gestion, bouton « Réglages » en bas de la barre latérale.
 - Enregistrer le Dock actuel comme nouveau profil (apps et réglages), ou mettre à jour le profil actif depuis le Dock actuel. Les réglages du Dock peuvent être retirés d'un profil pour qu'il ne change que les apps.
 - Fenêtre de gestion : renommer, colorer, réordonner les apps par glisser-déposer, ajouter des apps ou des espaceurs, supprimer, dupliquer.
 - Fond d'écran optionnel par profil : choisis une image (ou mémorise le fond actuel), elle est appliquée à tous les écrans en même temps que le Dock. Limite macOS : seul le bureau affiché de chaque écran change, pas les autres Spaces ; les fonds dynamiques du système (aériens, couleurs) ne sont pas des images et ne peuvent pas être mémorisés.
@@ -81,7 +81,7 @@ Sources/Docko/
   ProfileEditorView.swift      Éditeur d'un profil
   SettingsView.swift           Réglages (démarrage, nom dans la barre, raccourcis), dans la fenêtre de gestion
   AppCommand.swift             Commandes de l'app auxquelles on peut associer un raccourci
-  HotkeyManager.swift          Raccourcis globaux Carbon (déclencheur puis touche, commandes)
+  HotkeyManager.swift          Raccourcis globaux Carbon (profils et commandes)
   Shortcut.swift, LoginItemService.swift, ColorHex.swift, Prompts.swift
 Resources/Info.plist           LSUIElement, schéma d'URL
 Makefile                       Assemble le .app
@@ -89,6 +89,6 @@ Makefile                       Assemble le .app
 
 ## Limites connues
 
-- Les raccourcis globaux passent par `RegisterEventHotKey` (Carbon). Pendant les deux secondes qui suivent ⌘D, les touches des profils sont capturées globalement, puis relâchées. Les raccourcis de commandes sont enregistrés en permanence ; aucun n'est défini par défaut, un ⌘Q global quitterait Docko depuis n'importe quelle app.
+- Les raccourcis globaux passent par `RegisterEventHotKey` (Carbon), enregistrés en permanence. Ils exigent un modificateur et aucun n'est défini par défaut : un ⌘Q ou un « 1 » global confisquerait la touche à tout le système. Les touches seules des anciennes versions (jouées après ⌘D) sont ignorées au chargement.
 - Pas d'intégration App Intents : `swift build` n'exécute pas l'extraction de métadonnées d'Xcode, donc les intents ne seraient pas visibles dans Raccourcis. Le schéma d'URL couvre le besoin.
 - Les éléments du Dock d'un type inconnu dans `persistent-apps` sont ignorés à la capture.

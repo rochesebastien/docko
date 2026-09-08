@@ -134,7 +134,7 @@ struct DockProfile: Codable, Identifiable, Hashable {
     /// Chemin de l'image appliquée comme fond d'écran avec le profil. nil = le profil n'y touche pas.
     var wallpaperPath: String? = nil
     var createdAt: Date = Date()
-    /// Touche pressée après le déclencheur. nil = chiffre selon la position dans la liste.
+    /// Raccourci global qui applique le profil (combinaison complète, avec modificateurs). nil = aucun.
     var hotkey: Shortcut? = nil
 
     static let defaultColors = [

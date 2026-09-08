@@ -12,23 +12,8 @@ struct Shortcut: Codable, Hashable {
 
     static let relevantFlags: NSEvent.ModifierFlags = [.command, .shift, .option, .control]
 
-    /// Déclencheur par défaut : ⌘D.
-    static let defaultLeader = Shortcut(
-        keyCode: UInt32(kVK_ANSI_D),
-        modifiers: UInt32(NSEvent.ModifierFlags.command.rawValue),
-        keyLabel: "D"
-    )
-
-    private static let digitKeyCodes: [Int: Int] = [
-        1: kVK_ANSI_1, 2: kVK_ANSI_2, 3: kVK_ANSI_3, 4: kVK_ANSI_4, 5: kVK_ANSI_5,
-        6: kVK_ANSI_6, 7: kVK_ANSI_7, 8: kVK_ANSI_8, 9: kVK_ANSI_9,
-    ]
-
-    /// Touche chiffre sans modificateur, pour les profils 1 à 9.
-    static func digit(_ n: Int) -> Shortcut? {
-        guard let code = digitKeyCodes[n] else { return nil }
-        return Shortcut(keyCode: UInt32(code), modifiers: 0, keyLabel: String(n))
-    }
+    /// Vrai si au moins un modificateur est présent : condition pour un raccourci global.
+    var hasModifiers: Bool { !flags.isEmpty }
 
     var flags: NSEvent.ModifierFlags {
         NSEvent.ModifierFlags(rawValue: UInt(modifiers)).intersection(Shortcut.relevantFlags)

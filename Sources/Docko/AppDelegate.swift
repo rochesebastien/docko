@@ -11,8 +11,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var cancellables = Set<AnyCancellable>()
 
     private let hotkeys = HotkeyManager()
-    private var chordTimer: Timer?
-    private var chordArmed = false
 
     // MARK: - Cycle de vie
 
@@ -42,13 +40,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         LoginItemService.sync(with: store.launchAtLogin)
 
-        hotkeys.onLeader = { [weak self] in self?.leaderPressed() }
-        hotkeys.onChordKey = { [weak self] code in self?.chordKeyPressed(code) }
+        hotkeys.onProfile = { [weak self] id in self?.applyReportingErrors(id: id) }
         hotkeys.onCommand = { [weak self] command in self?.run(command) }
-        registeredLeader = store.leaderShortcut
-        hotkeys.registerLeader(store.leaderShortcut)
-        registeredCommands = store.commandShortcuts
-        hotkeys.registerCommands(store.commandShortcuts)
+        registerShortcutsIfChanged()
 
         // Le store publie avant la mutation ; on repasse par la main queue pour lire l'état à jour.
         store.objectWillChange
@@ -90,19 +84,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.setActivationPolicy(wanted)
     }
 
-    private var registeredLeader: Shortcut?
-    private var registeredCommands: [AppCommand: Shortcut] = [:]
-
     private func storeDidChange() {
         refreshStatusTitle()
         applyActivationPolicy()
-        if registeredLeader != store.leaderShortcut {
-            registeredLeader = store.leaderShortcut
-            hotkeys.registerLeader(store.leaderShortcut)
-        }
+        registerShortcutsIfChanged()
+    }
+
+    // MARK: - Raccourcis globaux
+
+    private var registeredCommands: [AppCommand: Shortcut] = [:]
+    private var registeredProfiles: [UUID: Shortcut] = [:]
+
+    /// Ré-enregistre auprès de Carbon uniquement ce qui a changé : le store publie à chaque mutation.
+    private func registerShortcutsIfChanged() {
         if registeredCommands != store.commandShortcuts {
             registeredCommands = store.commandShortcuts
             hotkeys.registerCommands(store.commandShortcuts)
+        }
+        let profileShortcuts = store.profileShortcuts
+        let byID = Dictionary(uniqueKeysWithValues: profileShortcuts.map { ($0.id, $0.shortcut) })
+        if registeredProfiles != byID {
+            registeredProfiles = byID
+            hotkeys.registerProfiles(profileShortcuts)
         }
     }
 
@@ -139,34 +142,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             item.attributedTitle = Self.titleWithHint(item.title, hint: shortcut.display)
         }
         return item
-    }
-
-    // MARK: - Raccourcis globaux (déclencheur puis touche)
-
-    private func leaderPressed() {
-        let codes = store.profiles.compactMap { store.effectiveHotkey(for: $0)?.keyCode }
-        guard !codes.isEmpty else { return }
-        hotkeys.armChord(keyCodes: codes)
-        chordArmed = true
-        refreshStatusTitle()
-        chordTimer?.invalidate()
-        chordTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
-            self?.endChord()
-        }
-    }
-
-    private func chordKeyPressed(_ keyCode: UInt32) {
-        endChord()
-        guard let profile = store.profiles.first(where: { store.effectiveHotkey(for: $0)?.keyCode == keyCode }) else { return }
-        applyReportingErrors(id: profile.id)
-    }
-
-    private func endChord() {
-        chordTimer?.invalidate()
-        chordTimer = nil
-        hotkeys.disarmChord()
-        chordArmed = false
-        refreshStatusTitle()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -213,8 +188,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             for profile in store.profiles {
                 let item = NSMenuItem(title: profile.name, action: #selector(applyProfile(_:)), keyEquivalent: "")
                 item.target = self
-                if let key = store.effectiveHotkey(for: profile) {
-                    item.attributedTitle = Self.titleWithHint(profile.name, hint: "\(store.leaderShortcut.display) \(key.display)")
+                if let key = profile.hotkey {
+                    item.attributedTitle = Self.titleWithHint(profile.name, hint: key.display)
                 }
                 item.image = NSColor.dotImage(hex: profile.colorHex)
                 item.representedObject = profile.id
@@ -295,9 +270,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func refreshStatusTitle() {
         guard let button = statusItem?.button else { return }
-        if chordArmed {
-            button.title = " \(store.leaderShortcut.display) ▸ touche du profil…"
-        } else if store.showsNameInMenuBar, let active = store.activeProfile {
+        if store.showsNameInMenuBar, let active = store.activeProfile {
             button.title = " " + active.name
         } else {
             button.title = ""

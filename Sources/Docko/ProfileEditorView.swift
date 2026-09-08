@@ -67,8 +67,8 @@ struct ProfileEditorView: View {
                 if isActive {
                     Pill(text: "Appliqué", systemImage: "checkmark", style: .success)
                 }
-                if let key = store.effectiveHotkey(for: profile) {
-                    Pill(text: "\(store.leaderShortcut.display) puis \(key.display)", style: .neutral)
+                if let key = profile.hotkey {
+                    Pill(text: key.display, systemImage: "keyboard", style: .neutral)
                         .help("Raccourci global de ce profil")
                 }
 

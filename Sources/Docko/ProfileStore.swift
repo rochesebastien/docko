@@ -4,8 +4,10 @@ import Combine
 enum ProfileStoreError: LocalizedError {
     case profileNotFound
     case invalidImportFile
-    /// Le raccourci est déjà pris par le déclencheur ou une autre commande.
+    /// Le raccourci est déjà pris par un profil ou une commande.
     case shortcutTaken(Shortcut, by: String)
+    /// Un raccourci global doit comporter au moins un modificateur.
+    case shortcutNeedsModifiers
 
     var errorDescription: String? {
         switch self {
@@ -13,6 +15,8 @@ enum ProfileStoreError: LocalizedError {
         case .invalidImportFile: return "Ce fichier n'est pas un export Docko valide."
         case .shortcutTaken(let shortcut, let owner):
             return "\(shortcut.display) est déjà utilisé par « \(owner) ». Choisis une autre combinaison."
+        case .shortcutNeedsModifiers:
+            return "Un raccourci global doit comporter au moins un modificateur (⌘, ⌥, ⌃ ou ⇧)."
         }
     }
 }
@@ -27,8 +31,6 @@ final class ProfileStore: ObservableObject {
     @Published var showsInDock: Bool = false { didSet { save() } }
     /// Préférence utilisateur. L'état réel côté macOS est géré par `LoginItemService`.
     @Published var launchAtLogin: Bool = false { didSet { save() } }
-    /// Déclencheur des raccourcis globaux (⌘D par défaut).
-    @Published var leaderShortcut: Shortcut = .defaultLeader { didSet { save() } }
     /// Raccourcis globaux des commandes de l'application. Aucun par défaut.
     @Published var commandShortcuts: [AppCommand: Shortcut] = [:] { didSet { save() } }
 
@@ -39,17 +41,15 @@ final class ProfileStore: ObservableObject {
         var showsNameInMenuBar: Bool
         var showsInDock: Bool
         var launchAtLogin: Bool
-        var leaderShortcut: Shortcut
         /// Clés = `AppCommand.rawValue`, pour un JSON lisible et stable.
         var commandShortcuts: [String: Shortcut]
 
-        init(profiles: [DockProfile], activeProfileID: UUID?, showsNameInMenuBar: Bool, showsInDock: Bool, launchAtLogin: Bool, leaderShortcut: Shortcut, commandShortcuts: [String: Shortcut]) {
+        init(profiles: [DockProfile], activeProfileID: UUID?, showsNameInMenuBar: Bool, showsInDock: Bool, launchAtLogin: Bool, commandShortcuts: [String: Shortcut]) {
             self.profiles = profiles
             self.activeProfileID = activeProfileID
             self.showsNameInMenuBar = showsNameInMenuBar
             self.showsInDock = showsInDock
             self.launchAtLogin = launchAtLogin
-            self.leaderShortcut = leaderShortcut
             self.commandShortcuts = commandShortcuts
         }
 
@@ -62,7 +62,6 @@ final class ProfileStore: ObservableObject {
             showsNameInMenuBar = try c.decodeIfPresent(Bool.self, forKey: .showsNameInMenuBar) ?? false
             showsInDock = try c.decodeIfPresent(Bool.self, forKey: .showsInDock) ?? false
             launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
-            leaderShortcut = try c.decodeIfPresent(Shortcut.self, forKey: .leaderShortcut) ?? .defaultLeader
             commandShortcuts = try c.decodeIfPresent([String: Shortcut].self, forKey: .commandShortcuts) ?? [:]
         }
     }
@@ -96,13 +95,6 @@ final class ProfileStore: ObservableObject {
         profiles.first { $0.id == id }
     }
 
-    /// Touche effective d'un profil : la sienne, sinon le chiffre de sa position (1 à 9).
-    func effectiveHotkey(for profile: DockProfile) -> Shortcut? {
-        if let hotkey = profile.hotkey { return hotkey }
-        guard let index = profiles.firstIndex(where: { $0.id == profile.id }) else { return nil }
-        return Shortcut.digit(index + 1)
-    }
-
     // MARK: - Raccourcis
 
     func shortcut(for command: AppCommand) -> Shortcut? {
@@ -110,33 +102,42 @@ final class ProfileStore: ObservableObject {
     }
 
     /// Associe (ou retire, avec nil) un raccourci global à une commande.
-    /// Refuse une combinaison déjà prise par le déclencheur ou une autre commande.
     func setShortcut(_ shortcut: Shortcut?, for command: AppCommand) throws {
         if let shortcut {
-            if let owner = owner(of: shortcut, excluding: command) {
-                throw ProfileStoreError.shortcutTaken(shortcut, by: owner)
-            }
+            try validate(shortcut, excludingCommand: command, excludingProfile: nil)
             commandShortcuts[command] = shortcut
         } else {
             commandShortcuts.removeValue(forKey: command)
         }
     }
 
-    /// Change le déclencheur, sauf s'il entre en conflit avec une commande.
-    func setLeaderShortcut(_ shortcut: Shortcut) throws {
-        if let owner = owner(of: shortcut, excluding: nil) {
-            throw ProfileStoreError.shortcutTaken(shortcut, by: owner)
+    /// Associe (ou retire, avec nil) un raccourci global à un profil.
+    func setHotkey(_ shortcut: Shortcut?, forProfile id: UUID) throws {
+        guard let index = profiles.firstIndex(where: { $0.id == id }) else { return }
+        if let shortcut {
+            try validate(shortcut, excludingCommand: nil, excludingProfile: id)
         }
-        leaderShortcut = shortcut
+        profiles[index].hotkey = shortcut
     }
 
-    /// Nom de ce qui utilise déjà cette combinaison, ou nil si elle est libre.
-    private func owner(of shortcut: Shortcut, excluding command: AppCommand?) -> String? {
-        if command != nil, leaderShortcut.collides(with: shortcut) { return "Déclencheur" }
-        for (other, existing) in commandShortcuts where other != command && existing.collides(with: shortcut) {
-            return other.shortTitle
+    /// Profils qui ont un raccourci, prêts à être enregistrés.
+    var profileShortcuts: [(id: UUID, shortcut: Shortcut, name: String)] {
+        profiles.compactMap { profile in
+            profile.hotkey.map { (id: profile.id, shortcut: $0, name: profile.name) }
         }
-        return nil
+    }
+
+    /// Refuse un raccourci sans modificateur, ou déjà pris par un autre profil ou une autre commande.
+    private func validate(_ shortcut: Shortcut, excludingCommand: AppCommand?, excludingProfile: UUID?) throws {
+        guard shortcut.hasModifiers else { throw ProfileStoreError.shortcutNeedsModifiers }
+        for (command, existing) in commandShortcuts where command != excludingCommand && existing.collides(with: shortcut) {
+            throw ProfileStoreError.shortcutTaken(shortcut, by: command.shortTitle)
+        }
+        for profile in profiles where profile.id != excludingProfile {
+            if let existing = profile.hotkey, existing.collides(with: shortcut) {
+                throw ProfileStoreError.shortcutTaken(shortcut, by: profile.name)
+            }
+        }
     }
 
     func profile(named name: String) -> DockProfile? {
@@ -320,7 +321,13 @@ final class ProfileStore: ObservableObject {
         showsNameInMenuBar = persisted.showsNameInMenuBar
         showsInDock = persisted.showsInDock
         launchAtLogin = persisted.launchAtLogin
-        leaderShortcut = persisted.leaderShortcut
+        // Les anciennes versions stockaient une touche seule, jouée après un déclencheur ⌘D.
+        // Enregistrée telle quelle en global, elle confisquerait la touche à tout le système.
+        profiles = profiles.map { profile in
+            var profile = profile
+            if let hotkey = profile.hotkey, !hotkey.hasModifiers { profile.hotkey = nil }
+            return profile
+        }
         commandShortcuts = persisted.commandShortcuts.reduce(into: [:]) { result, entry in
             if let command = AppCommand(rawValue: entry.key) { result[command] = entry.value }
         }
@@ -334,7 +341,6 @@ final class ProfileStore: ObservableObject {
             showsNameInMenuBar: showsNameInMenuBar,
             showsInDock: showsInDock,
             launchAtLogin: launchAtLogin,
-            leaderShortcut: leaderShortcut,
             commandShortcuts: commandShortcuts.reduce(into: [:]) { $0[$1.key.rawValue] = $1.value }
         )
         let encoder = JSONEncoder()

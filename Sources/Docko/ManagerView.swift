@@ -95,18 +95,11 @@ struct ManagerView: View {
                 } header: {
                     Text("Profils")
                 }
-
-                Section {
-                    Label("Réglages", systemImage: "gearshape")
-                        .tag(SidebarSelection.settings)
-                        .help("Démarrage, barre des menus, raccourcis clavier")
-                } header: {
-                    Text("Application")
-                }
             }
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
 
+            settingsRow
             Divider()
             sidebarFooter
         }
@@ -123,6 +116,35 @@ struct ManagerView: View {
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 10)
+    }
+
+    /// Accès aux réglages, posé sous la liste des profils, avec le même rendu qu'une ligne sélectionnée.
+    private var settingsRow: some View {
+        let selected = selection == .settings
+        return Button {
+            selection = .settings
+        } label: {
+            HStack(spacing: 9) {
+                Image(systemName: "gearshape")
+                    .frame(width: 16)
+                Text("Réglages")
+                Spacer()
+            }
+            .font(.callout)
+            .foregroundStyle(selected ? Color.white : Color.primary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(selected ? Color.accentColor : Color.clear)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 10)
+        .padding(.bottom, 8)
+        .help("Démarrage, barre des menus, raccourcis clavier")
     }
 
     private var sidebarFooter: some View {
