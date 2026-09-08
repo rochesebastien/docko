@@ -27,6 +27,13 @@ struct DockItem: Codable, Identifiable, Hashable {
 
     var isSpacer: Bool { kind != .app }
 
+    /// Ce qui compte pour comparer deux Docks : le type et le chemin, pas l'identifiant interne.
+    var signature: String {
+        var normalized = path ?? ""
+        while normalized.hasSuffix("/") { normalized.removeLast() }
+        return "\(kind.rawValue):\(normalized)"
+    }
+
     var displayName: String {
         switch kind {
         case .app:
@@ -123,7 +130,7 @@ extension DockSettings.Value: Codable {
 }
 
 /// Un profil de Dock : un nom, une couleur, la liste ordonnée des éléments,
-/// et optionnellement les réglages d'apparence du Dock.
+/// et optionnellement les réglages d'apparence du Dock et un fond d'écran.
 struct DockProfile: Codable, Identifiable, Hashable {
     var id: UUID = UUID()
     var name: String
@@ -131,8 +138,12 @@ struct DockProfile: Codable, Identifiable, Hashable {
     var items: [DockItem] = []
     /// nil = le profil ne touche pas aux réglages du Dock.
     var dockSettings: DockSettings? = nil
+    /// Dernière capture des réglages du Dock dans ce profil.
+    var dockSettingsUpdatedAt: Date? = nil
+    /// Chemin de l'image appliquée comme fond d'écran avec le profil. nil = le profil n'y touche pas.
+    var wallpaperPath: String? = nil
     var createdAt: Date = Date()
-    /// Touche pressée après le déclencheur. nil = chiffre selon la position dans la liste.
+    /// Raccourci global qui applique le profil (combinaison complète, avec modificateurs). nil = aucun.
     var hotkey: Shortcut? = nil
 
     static let defaultColors = [
@@ -141,5 +152,11 @@ struct DockProfile: Codable, Identifiable, Hashable {
 
     static func nextColor(after profiles: [DockProfile]) -> String {
         defaultColors[profiles.count % defaultColors.count]
+    }
+
+    /// Vrai si le profil n'a pas de fond d'écran, ou si son image existe encore sur le disque.
+    var wallpaperExistsOnDisk: Bool {
+        guard let wallpaperPath else { return true }
+        return FileManager.default.fileExists(atPath: wallpaperPath)
     }
 }

@@ -5,8 +5,10 @@ DIST_DIR    := dist
 APP_BUNDLE  := $(DIST_DIR)/$(APP_NAME).app
 CONTENTS    := $(APP_BUNDLE)/Contents
 ICON_SRC    := Resources/AppIcon.icns
+VERSION     := $(shell /usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" Resources/Info.plist 2>/dev/null || echo dev)
+ZIP         := $(DIST_DIR)/$(APP_NAME)-$(VERSION).zip
 
-.PHONY: all build bundle run install clean icon
+.PHONY: all build bundle run install zip clean icon
 
 all: bundle
 
@@ -17,6 +19,7 @@ bundle: build
 	rm -rf "$(APP_BUNDLE)"
 	mkdir -p "$(CONTENTS)/MacOS" "$(CONTENTS)/Resources"
 	cp "$(BUILD_DIR)/$(APP_NAME)" "$(CONTENTS)/MacOS/$(APP_NAME)"
+	chmod +x "$(CONTENTS)/MacOS/$(APP_NAME)"
 	cp Resources/Info.plist "$(CONTENTS)/Info.plist"
 	@if [ -f "$(ICON_SRC)" ]; then cp "$(ICON_SRC)" "$(CONTENTS)/Resources/AppIcon.icns"; fi
 	cp Resources/Wordmark.png "$(CONTENTS)/Resources/Wordmark.png"
@@ -34,6 +37,18 @@ install: bundle
 	cp -R "$(APP_BUNDLE)" /Applications/
 	open "/Applications/$(APP_NAME).app"
 	@echo "→ /Applications/$(APP_NAME).app (lancé)"
+
+# Archive prête à partager. `ditto` conserve le bit d'exécution et la signature, contrairement
+# à certains zips ou transferts (cloud, messagerie) qui les perdent et rendent l'app inouvrable.
+# La signature ad hoc ne suffit pas à Gatekeeper : chez le destinataire, clic droit › Ouvrir
+# la première fois, ou `xattr -dr com.apple.quarantine Docko.app`.
+zip: bundle
+	chmod +x "$(CONTENTS)/MacOS/$(APP_NAME)"
+	codesign --force --deep --sign - "$(APP_BUNDLE)"
+	codesign --verify --deep --strict "$(APP_BUNDLE)"
+	rm -f "$(ZIP)"
+	ditto -c -k --keepParent --sequesterRsrc "$(APP_BUNDLE)" "$(ZIP)"
+	@echo "→ $(ZIP)"
 
 # Génère Resources/AppIcon.icns depuis Resources/AppIcon.png (1024x1024).
 icon:

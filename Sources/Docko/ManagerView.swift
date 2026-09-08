@@ -13,9 +13,20 @@ extension ProfileStore {
     }
 }
 
+/// Ce que la barre latérale peut sélectionner : un profil, ou les réglages de l'app.
+enum SidebarSelection: Hashable {
+    case profile(UUID)
+    case settings
+
+    var profileID: UUID? {
+        if case .profile(let id) = self { return id }
+        return nil
+    }
+}
+
 struct ManagerView: View {
     @EnvironmentObject private var store: ProfileStore
-    @State private var selection: UUID?
+    @State private var selection: SidebarSelection?
     @State private var confirmDelete = false
     @State private var errorMessage: String?
 
@@ -24,14 +35,21 @@ struct ManagerView: View {
             sidebar
                 .navigationSplitViewColumnWidth(min: 200, ideal: 240, max: 320)
         } detail: {
-            if let selection, let binding = store.binding(for: selection) {
-                ProfileEditorView(
-                    profile: binding,
-                    onDuplicate: duplicateSelected,
-                    onDelete: { confirmDelete = true }
-                )
-                .id(selection)
-            } else {
+            switch selection {
+            case .some(.settings):
+                SettingsView()
+            case .some(.profile(let id)):
+                if let binding = store.binding(for: id) {
+                    ProfileEditorView(
+                        profile: binding,
+                        onDuplicate: duplicateSelected,
+                        onDelete: { confirmDelete = true }
+                    )
+                    .id(id)
+                } else {
+                    placeholder
+                }
+            case .none:
                 placeholder
             }
         }
@@ -55,7 +73,9 @@ struct ManagerView: View {
             Text(errorMessage ?? "")
         }
         .onAppear {
-            if selection == nil { selection = store.activeProfileID ?? store.profiles.first?.id }
+            if selection == nil, let id = store.activeProfileID ?? store.profiles.first?.id {
+                selection = .profile(id)
+            }
         }
     }
 
@@ -68,7 +88,7 @@ struct ManagerView: View {
                 Section {
                     ForEach(store.profiles) { profile in
                         SidebarRow(profile: profile, isActive: profile.id == store.activeProfileID)
-                            .tag(profile.id)
+                            .tag(SidebarSelection.profile(profile.id))
                             .contextMenu { contextMenu(for: profile) }
                     }
                     .onMove { store.moveProfiles(from: $0, to: $1) }
@@ -79,6 +99,7 @@ struct ManagerView: View {
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
 
+            settingsRow
             Divider()
             sidebarFooter
         }
@@ -95,6 +116,35 @@ struct ManagerView: View {
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 10)
+    }
+
+    /// Accès aux réglages, posé sous la liste des profils, avec le même rendu qu'une ligne sélectionnée.
+    private var settingsRow: some View {
+        let selected = selection == .settings
+        return Button {
+            selection = .settings
+        } label: {
+            HStack(spacing: 9) {
+                Image(systemName: "gearshape")
+                    .frame(width: 16)
+                Text("Réglages")
+                Spacer()
+            }
+            .font(.callout)
+            .foregroundStyle(selected ? Color.white : Color.primary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(selected ? Color.accentColor : Color.clear)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 10)
+        .padding(.bottom, 8)
+        .help("Démarrage, barre des menus, raccourcis clavier")
     }
 
     private var sidebarFooter: some View {
@@ -138,10 +188,10 @@ struct ManagerView: View {
         .disabled(profile.items.isEmpty)
         Divider()
         Button("Dupliquer") {
-            if let copy = store.duplicate(id: profile.id) { selection = copy.id }
+            if let copy = store.duplicate(id: profile.id) { selection = .profile(copy.id) }
         }
         Button("Supprimer…", role: .destructive) {
-            selection = profile.id
+            selection = .profile(profile.id)
             confirmDelete = true
         }
     }
@@ -171,7 +221,7 @@ struct ManagerView: View {
             defaultName: "Profil \(store.profiles.count + 1)"
         ) else { return }
         let profile = store.captureCurrentDock(named: name)
-        selection = profile.id
+        selection = .profile(profile.id)
     }
 
     private func createEmptyProfile() {
@@ -181,20 +231,20 @@ struct ManagerView: View {
             confirmTitle: "Créer"
         ) else { return }
         let profile = store.createEmptyProfile(named: name)
-        selection = profile.id
+        selection = .profile(profile.id)
     }
 
     private func duplicateSelected() {
-        guard let selection, let copy = store.duplicate(id: selection) else { return }
-        self.selection = copy.id
+        guard let id = selection?.profileID, let copy = store.duplicate(id: id) else { return }
+        selection = .profile(copy.id)
     }
 
     private func deleteSelected() {
-        guard let id = selection else { return }
+        guard let id = selection?.profileID else { return }
         let index = store.profiles.firstIndex { $0.id == id } ?? 0
         store.delete(id: id)
         let remaining = store.profiles
-        selection = remaining.isEmpty ? nil : remaining[min(index, remaining.count - 1)].id
+        selection = remaining.isEmpty ? nil : .profile(remaining[min(index, remaining.count - 1)].id)
     }
 
     private func importProfiles() {
@@ -209,7 +259,7 @@ struct ManagerView: View {
             let data = try Data(contentsOf: url)
             let count = try store.importData(data)
             if count == 0 { errorMessage = "Aucun profil trouvé dans ce fichier." }
-            if selection == nil { selection = store.profiles.last?.id }
+            if selection == nil, let last = store.profiles.last { selection = .profile(last.id) }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -237,12 +287,28 @@ private struct SidebarRow: View {
     let profile: DockProfile
     let isActive: Bool
 
+    @State private var hovering = false
+
     var body: some View {
         HStack(spacing: 9) {
             ColorSwatch(hex: profile.colorHex, size: 12)
             Text(profile.name)
                 .lineLimit(1)
             Spacer(minLength: 6)
+            if let key = profile.hotkey {
+                // Icône au repos, combinaison au survol.
+                Group {
+                    if hovering {
+                        Text(key.display)
+                            .font(.caption.monospacedDigit())
+                    } else {
+                        Image(systemName: "keyboard")
+                            .font(.caption)
+                    }
+                }
+                .foregroundStyle(.secondary)
+                .help("Raccourci global : \(key.display)")
+            }
             if isActive {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.caption)
@@ -251,5 +317,7 @@ private struct SidebarRow: View {
             }
         }
         .padding(.vertical, 2)
+        .contentShape(Rectangle())
+        .onHover { hovering = $0 }
     }
 }

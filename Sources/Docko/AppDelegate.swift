@@ -8,12 +8,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let menu = NSMenu()
     private var managerWindow: NSWindow?
-    private var settingsWindow: NSWindow?
     private var cancellables = Set<AnyCancellable>()
 
     private let hotkeys = HotkeyManager()
-    private var chordTimer: Timer?
-    private var chordArmed = false
 
     // MARK: - Cycle de vie
 
@@ -43,10 +40,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         LoginItemService.sync(with: store.launchAtLogin)
 
-        hotkeys.onLeader = { [weak self] in self?.leaderPressed() }
-        hotkeys.onChordKey = { [weak self] code in self?.chordKeyPressed(code) }
-        registeredLeader = store.leaderShortcut
-        hotkeys.registerLeader(store.leaderShortcut)
+        hotkeys.onProfile = { [weak self] id in self?.applyReportingErrors(id: id) }
+        hotkeys.onCommand = { [weak self] command in self?.run(command) }
+        registerShortcutsIfChanged()
 
         // Le store publie avant la mutation ; on repasse par la main queue pour lire l'état à jour.
         store.objectWillChange
@@ -88,43 +84,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.setActivationPolicy(wanted)
     }
 
-    private var registeredLeader: Shortcut?
-
     private func storeDidChange() {
         refreshStatusTitle()
         applyActivationPolicy()
-        if registeredLeader != store.leaderShortcut {
-            registeredLeader = store.leaderShortcut
-            hotkeys.registerLeader(store.leaderShortcut)
+        registerShortcutsIfChanged()
+    }
+
+    // MARK: - Raccourcis globaux
+
+    private var registeredCommands: [AppCommand: Shortcut] = [:]
+    private var registeredProfiles: [UUID: Shortcut] = [:]
+
+    /// Ré-enregistre auprès de Carbon uniquement ce qui a changé : le store publie à chaque mutation.
+    private func registerShortcutsIfChanged() {
+        if registeredCommands != store.commandShortcuts {
+            registeredCommands = store.commandShortcuts
+            hotkeys.registerCommands(store.commandShortcuts)
+        }
+        let profileShortcuts = store.profileShortcuts
+        let byID = Dictionary(uniqueKeysWithValues: profileShortcuts.map { ($0.id, $0.shortcut) })
+        if registeredProfiles != byID {
+            registeredProfiles = byID
+            hotkeys.registerProfiles(profileShortcuts)
         }
     }
 
-    // MARK: - Raccourcis globaux (déclencheur puis touche)
+    // MARK: - Commandes
 
-    private func leaderPressed() {
-        let codes = store.profiles.compactMap { store.effectiveHotkey(for: $0)?.keyCode }
-        guard !codes.isEmpty else { return }
-        hotkeys.armChord(keyCodes: codes)
-        chordArmed = true
-        refreshStatusTitle()
-        chordTimer?.invalidate()
-        chordTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
-            self?.endChord()
+    /// Point d'entrée unique des commandes, depuis le menu comme depuis un raccourci global.
+    func run(_ command: AppCommand) {
+        switch command {
+        case .openManager: showManager()
+        case .captureCurrentDock: captureCurrentDock()
+        case .updateActiveProfile: updateActiveFromCurrentDock()
+        case .openDockSettings: openDockSettings()
+        case .restartDock: restartDock()
+        case .openApp: showManager()
+        case .quit: NSApp.terminate(nil)
         }
     }
 
-    private func chordKeyPressed(_ keyCode: UInt32) {
-        endChord()
-        guard let profile = store.profiles.first(where: { store.effectiveHotkey(for: $0)?.keyCode == keyCode }) else { return }
-        applyReportingErrors(id: profile.id)
+    @objc private func performCommand(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let command = AppCommand(rawValue: raw) else { return }
+        run(command)
     }
 
-    private func endChord() {
-        chordTimer?.invalidate()
-        chordTimer = nil
-        hotkeys.disarmChord()
-        chordArmed = false
-        refreshStatusTitle()
+    /// Entrée de menu d'une commande, avec son raccourci global en indication grise s'il en a un.
+    /// Pas de `keyEquivalent` : le raccourci Carbon est déjà global, un équivalent de menu
+    /// déclencherait la commande deux fois quand le menu est ouvert.
+    private func menuItem(for command: AppCommand, title: String? = nil) -> NSMenuItem {
+        let item = NSMenuItem(title: title ?? command.title, action: #selector(performCommand(_:)), keyEquivalent: "")
+        item.target = self
+        item.representedObject = command.rawValue
+        item.image = Self.symbol(command.symbol)
+        if let shortcut = store.shortcut(for: command) {
+            item.attributedTitle = Self.titleWithHint(item.title, hint: shortcut.display)
+        }
+        return item
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -171,61 +187,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             for profile in store.profiles {
                 let item = NSMenuItem(title: profile.name, action: #selector(applyProfile(_:)), keyEquivalent: "")
                 item.target = self
-                if let key = store.effectiveHotkey(for: profile) {
-                    item.attributedTitle = Self.titleWithHint(profile.name, hint: "\(store.leaderShortcut.display) \(key.display)")
+                if let key = profile.hotkey {
+                    item.attributedTitle = Self.titleWithHint(profile.name, hint: key.display)
                 }
                 item.image = NSColor.dotImage(hex: profile.colorHex)
                 item.representedObject = profile.id
                 item.state = profile.id == store.activeProfileID ? .on : .off
+                // Même règle que dans la fenêtre : un profil vide ne s'applique pas, il viderait le Dock.
+                item.isEnabled = !profile.items.isEmpty
+                if profile.items.isEmpty { item.toolTip = "Profil vide : ajoute des apps avant de l'appliquer." }
                 menu.addItem(item)
             }
         }
 
         menu.addItem(.separator())
 
-        let manage = NSMenuItem(title: "Gérer les profils…", action: #selector(openManager), keyEquivalent: "")
-        manage.target = self
-        manage.image = Self.symbol("rectangle.stack")
-        menu.addItem(manage)
+        menu.addItem(menuItem(for: .openManager))
+        menu.addItem(menuItem(for: .captureCurrentDock))
 
-        let capture = NSMenuItem(
-            title: "Enregistrer le Dock actuel comme nouveau profil…",
-            action: #selector(captureCurrentDock),
-            keyEquivalent: "n"
-        )
-        capture.target = self
-        capture.image = Self.symbol("plus.circle")
-        menu.addItem(capture)
-
-        let update = NSMenuItem(
+        let update = menuItem(
+            for: .updateActiveProfile,
             title: store.activeProfile.map { "Mettre à jour « \($0.name) » depuis le Dock actuel" }
-                ?? "Mettre à jour le profil actif depuis le Dock actuel",
-            action: #selector(updateActiveFromCurrentDock),
-            keyEquivalent: "s"
         )
-        update.target = self
         update.isEnabled = store.activeProfile != nil
-        update.image = Self.symbol("arrow.triangle.2.circlepath")
         menu.addItem(update)
 
         menu.addItem(.separator())
 
         let settingsMenu = NSMenu(title: "Réglages")
 
-        let settings = NSMenuItem(title: "Réglages de Docko…", action: #selector(openSettings), keyEquivalent: ",")
-        settings.target = self
-        settings.image = Self.symbol("gearshape")
-        settingsMenu.addItem(settings)
+        settingsMenu.addItem(menuItem(for: .openDockSettings))
 
-        let dockSettings = NSMenuItem(title: "Réglages du Dock…", action: #selector(openDockSettings), keyEquivalent: "")
-        dockSettings.target = self
-        dockSettings.image = Self.symbol("dock.rectangle")
-        settingsMenu.addItem(dockSettings)
-
-        let restart = NSMenuItem(title: "Relancer le Dock", action: #selector(restartDock), keyEquivalent: "")
-        restart.target = self
+        let restart = menuItem(for: .restartDock)
         restart.toolTip = "Utile si le Dock reste affiché ou ne réagit plus à ses réglages."
-        restart.image = Self.symbol("arrow.clockwise")
         settingsMenu.addItem(restart)
 
         settingsMenu.addItem(.separator())
@@ -263,9 +257,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        let quit = NSMenuItem(title: "Quitter Docko", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        quit.image = Self.symbol("xmark.square")
-        menu.addItem(quit)
+        menu.addItem(menuItem(for: .openApp))
+        menu.addItem(menuItem(for: .quit))
     }
 
     /// Symbole SF pour une entrée de menu, à la taille des menus système.
@@ -276,9 +269,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func refreshStatusTitle() {
         guard let button = statusItem?.button else { return }
-        if chordArmed {
-            button.title = " \(store.leaderShortcut.display) ▸ touche du profil…"
-        } else if store.showsNameInMenuBar, let active = store.activeProfile {
+        if store.showsNameInMenuBar, let active = store.activeProfile {
             button.title = " " + active.name
         } else {
             button.title = ""
@@ -312,7 +303,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    @objc private func captureCurrentDock() {
+    private func captureCurrentDock() {
         guard let name = Prompts.askForName(
             title: "Nouveau profil depuis le Dock actuel",
             message: "Les apps épinglées et les espaceurs du Dock actuel seront enregistrés dans ce profil.",
@@ -321,7 +312,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         store.captureCurrentDock(named: name)
     }
 
-    @objc private func updateActiveFromCurrentDock() {
+    private func updateActiveFromCurrentDock() {
         guard let active = store.activeProfile else { return }
         let ok = Prompts.confirm(
             title: "Mettre à jour « \(active.name) » ?",
@@ -332,15 +323,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         store.replaceItemsWithCurrentDock(id: active.id)
     }
 
-    @objc private func openManager() {
-        showManager()
-    }
-
-    @objc private func openSettings() {
-        showSettings()
-    }
-
-    @objc private func openDockSettings() {
+    private func openDockSettings() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.Desktop-Settings.extension") {
             NSWorkspace.shared.open(url)
         }
@@ -348,7 +331,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// Dépannage : le Dock garde parfois un état incohérent (masquage automatique ignoré,
     /// barre collée par-dessus les fenêtres) ; le relancer suffit.
-    @objc private func restartDock() {
+    private func restartDock() {
         do {
             try DockService.restartDock()
         } catch {
@@ -398,21 +381,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         NSApp.activate(ignoringOtherApps: true)
         managerWindow?.makeKeyAndOrderFront(nil)
-    }
-
-    func showSettings() {
-        if settingsWindow == nil {
-            let root = SettingsView().environmentObject(store)
-            let host = NSHostingController(rootView: root)
-            let window = NSWindow(contentViewController: host)
-            window.title = "Réglages de Docko"
-            window.styleMask = [.titled, .closable]
-            window.titlebarAppearsTransparent = true
-            window.isReleasedWhenClosed = false
-            window.center()
-            settingsWindow = window
-        }
-        NSApp.activate(ignoringOtherApps: true)
-        settingsWindow?.makeKeyAndOrderFront(nil)
     }
 }
