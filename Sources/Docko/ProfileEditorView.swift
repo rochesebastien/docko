@@ -190,7 +190,7 @@ struct ProfileEditorView: View {
 
     private var dockSettingsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionLabel(text: "Réglages du Dock")
+            SectionLabel(text: "Mises à jour du Dock")
             HStack(spacing: 12) {
                 Image(systemName: "slider.horizontal.3")
                     .font(.title3)
@@ -340,7 +340,7 @@ struct ProfileEditorView: View {
     private var items: some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionLabel(
-                text: "Éléments",
+                text: "Raccourcis d'applications",
                 trailing: profile.items.isEmpty ? nil : "\(appCount) apps · \(spacerCount) espaces"
             )
 
