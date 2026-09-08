@@ -8,7 +8,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let menu = NSMenu()
     private var managerWindow: NSWindow?
-    private var settingsWindow: NSWindow?
     private var cancellables = Set<AnyCancellable>()
 
     private let hotkeys = HotkeyManager()
@@ -45,8 +44,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         hotkeys.onLeader = { [weak self] in self?.leaderPressed() }
         hotkeys.onChordKey = { [weak self] code in self?.chordKeyPressed(code) }
+        hotkeys.onCommand = { [weak self] command in self?.run(command) }
         registeredLeader = store.leaderShortcut
         hotkeys.registerLeader(store.leaderShortcut)
+        registeredCommands = store.commandShortcuts
+        hotkeys.registerCommands(store.commandShortcuts)
 
         // Le store publie avant la mutation ; on repasse par la main queue pour lire l'état à jour.
         store.objectWillChange
@@ -89,6 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private var registeredLeader: Shortcut?
+    private var registeredCommands: [AppCommand: Shortcut] = [:]
 
     private func storeDidChange() {
         refreshStatusTitle()
@@ -97,6 +100,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             registeredLeader = store.leaderShortcut
             hotkeys.registerLeader(store.leaderShortcut)
         }
+        if registeredCommands != store.commandShortcuts {
+            registeredCommands = store.commandShortcuts
+            hotkeys.registerCommands(store.commandShortcuts)
+        }
+    }
+
+    // MARK: - Commandes
+
+    /// Point d'entrée unique des commandes, depuis le menu comme depuis un raccourci global.
+    func run(_ command: AppCommand) {
+        switch command {
+        case .openManager: showManager()
+        case .captureCurrentDock: captureCurrentDock()
+        case .updateActiveProfile: updateActiveFromCurrentDock()
+        case .applyNextProfile:
+            do { try store.applyNext() } catch { Prompts.showError(error, title: "Profil suivant") }
+        case .openDockSettings: openDockSettings()
+        case .restartDock: restartDock()
+        case .quit: NSApp.terminate(nil)
+        }
+    }
+
+    @objc private func performCommand(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let command = AppCommand(rawValue: raw) else { return }
+        run(command)
+    }
+
+    /// Entrée de menu d'une commande, avec son raccourci global en indication grise s'il en a un.
+    /// Pas de `keyEquivalent` : le raccourci Carbon est déjà global, un équivalent de menu
+    /// déclencherait la commande deux fois quand le menu est ouvert.
+    private func menuItem(for command: AppCommand, title: String? = nil) -> NSMenuItem {
+        let item = NSMenuItem(title: title ?? command.title, action: #selector(performCommand(_:)), keyEquivalent: "")
+        item.target = self
+        item.representedObject = command.rawValue
+        item.image = Self.symbol(command.symbol)
+        if let shortcut = store.shortcut(for: command) {
+            item.attributedTitle = Self.titleWithHint(item.title, hint: shortcut.display)
+        }
+        return item
     }
 
     // MARK: - Raccourcis globaux (déclencheur puis touche)
@@ -183,49 +225,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        let manage = NSMenuItem(title: "Gérer les profils…", action: #selector(openManager), keyEquivalent: "")
-        manage.target = self
-        manage.image = Self.symbol("rectangle.stack")
-        menu.addItem(manage)
+        menu.addItem(menuItem(for: .openManager))
+        menu.addItem(menuItem(for: .captureCurrentDock))
 
-        let capture = NSMenuItem(
-            title: "Enregistrer le Dock actuel comme nouveau profil…",
-            action: #selector(captureCurrentDock),
-            keyEquivalent: "n"
-        )
-        capture.target = self
-        capture.image = Self.symbol("plus.circle")
-        menu.addItem(capture)
-
-        let update = NSMenuItem(
+        let update = menuItem(
+            for: .updateActiveProfile,
             title: store.activeProfile.map { "Mettre à jour « \($0.name) » depuis le Dock actuel" }
-                ?? "Mettre à jour le profil actif depuis le Dock actuel",
-            action: #selector(updateActiveFromCurrentDock),
-            keyEquivalent: "s"
         )
-        update.target = self
         update.isEnabled = store.activeProfile != nil
-        update.image = Self.symbol("arrow.triangle.2.circlepath")
         menu.addItem(update)
+
+        let next = menuItem(for: .applyNextProfile)
+        next.isEnabled = store.profiles.count > 1
+        menu.addItem(next)
 
         menu.addItem(.separator())
 
         let settingsMenu = NSMenu(title: "Réglages")
 
-        let settings = NSMenuItem(title: "Réglages de Docko…", action: #selector(openSettings), keyEquivalent: ",")
-        settings.target = self
-        settings.image = Self.symbol("gearshape")
-        settingsMenu.addItem(settings)
+        settingsMenu.addItem(menuItem(for: .openDockSettings))
 
-        let dockSettings = NSMenuItem(title: "Réglages du Dock…", action: #selector(openDockSettings), keyEquivalent: "")
-        dockSettings.target = self
-        dockSettings.image = Self.symbol("dock.rectangle")
-        settingsMenu.addItem(dockSettings)
-
-        let restart = NSMenuItem(title: "Relancer le Dock", action: #selector(restartDock), keyEquivalent: "")
-        restart.target = self
+        let restart = menuItem(for: .restartDock)
         restart.toolTip = "Utile si le Dock reste affiché ou ne réagit plus à ses réglages."
-        restart.image = Self.symbol("arrow.clockwise")
         settingsMenu.addItem(restart)
 
         settingsMenu.addItem(.separator())
@@ -263,9 +284,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        let quit = NSMenuItem(title: "Quitter Docko", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        quit.image = Self.symbol("xmark.square")
-        menu.addItem(quit)
+        menu.addItem(menuItem(for: .quit))
     }
 
     /// Symbole SF pour une entrée de menu, à la taille des menus système.
@@ -312,7 +331,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    @objc private func captureCurrentDock() {
+    private func captureCurrentDock() {
         guard let name = Prompts.askForName(
             title: "Nouveau profil depuis le Dock actuel",
             message: "Les apps épinglées et les espaceurs du Dock actuel seront enregistrés dans ce profil.",
@@ -321,7 +340,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         store.captureCurrentDock(named: name)
     }
 
-    @objc private func updateActiveFromCurrentDock() {
+    private func updateActiveFromCurrentDock() {
         guard let active = store.activeProfile else { return }
         let ok = Prompts.confirm(
             title: "Mettre à jour « \(active.name) » ?",
@@ -332,15 +351,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         store.replaceItemsWithCurrentDock(id: active.id)
     }
 
-    @objc private func openManager() {
-        showManager()
-    }
-
-    @objc private func openSettings() {
-        showSettings()
-    }
-
-    @objc private func openDockSettings() {
+    private func openDockSettings() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.Desktop-Settings.extension") {
             NSWorkspace.shared.open(url)
         }
@@ -348,7 +359,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// Dépannage : le Dock garde parfois un état incohérent (masquage automatique ignoré,
     /// barre collée par-dessus les fenêtres) ; le relancer suffit.
-    @objc private func restartDock() {
+    private func restartDock() {
         do {
             try DockService.restartDock()
         } catch {
@@ -398,21 +409,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         NSApp.activate(ignoringOtherApps: true)
         managerWindow?.makeKeyAndOrderFront(nil)
-    }
-
-    func showSettings() {
-        if settingsWindow == nil {
-            let root = SettingsView().environmentObject(store)
-            let host = NSHostingController(rootView: root)
-            let window = NSWindow(contentViewController: host)
-            window.title = "Réglages de Docko"
-            window.styleMask = [.titled, .closable]
-            window.titlebarAppearsTransparent = true
-            window.isReleasedWhenClosed = false
-            window.center()
-            settingsWindow = window
-        }
-        NSApp.activate(ignoringOtherApps: true)
-        settingsWindow?.makeKeyAndOrderFront(nil)
     }
 }

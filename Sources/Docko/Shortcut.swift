@@ -54,6 +54,11 @@ struct Shortcut: Codable, Hashable {
         return symbols + keyLabel
     }
 
+    /// Même touche et mêmes modificateurs : deux raccourcis qui se marcheraient dessus.
+    func collides(with other: Shortcut) -> Bool {
+        keyCode == other.keyCode && flags == other.flags
+    }
+
     // MARK: - Enregistrement depuis un NSEvent
 
     init(keyCode: UInt32, modifiers: UInt32, keyLabel: String) {

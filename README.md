@@ -7,7 +7,7 @@ Un profil enregistre les **apps épinglées** et les **espaceurs** du Dock, et, 
 ## Fonctionnalités
 
 - Icône dans la barre des menus, sans icône dans le Dock. Un clic sur un profil l'applique.
-- Raccourcis globaux en séquence : ⌘D puis la touche du profil (1 à 9 par défaut), depuis n'importe quelle app. Déclencheur et touches modifiables dans Réglages…
+- Raccourcis globaux en séquence : ⌘D puis la touche du profil (1 à 9 par défaut), depuis n'importe quelle app. Chaque commande du menu (gérer les profils, enregistrer le Dock, profil suivant, relancer le Dock, quitter…) peut aussi recevoir son propre raccourci global. Tout se règle dans la fenêtre de gestion, entrée « Réglages » de la barre latérale.
 - Enregistrer le Dock actuel comme nouveau profil (apps et réglages), ou mettre à jour le profil actif depuis le Dock actuel. Les réglages du Dock peuvent être retirés d'un profil pour qu'il ne change que les apps.
 - Fenêtre de gestion : renommer, colorer, réordonner les apps par glisser-déposer, ajouter des apps ou des espaceurs, supprimer, dupliquer.
 - Fond d'écran optionnel par profil : choisis une image (ou mémorise le fond actuel), elle est appliquée à tous les écrans en même temps que le Dock. Limite macOS : seul le bureau affiché de chaque écran change, pas les autres Spaces ; les fonds dynamiques du système (aériens, couleurs) ne sont pas des images et ne peuvent pas être mémorisés.
@@ -26,9 +26,12 @@ Un profil enregistre les **apps épinglées** et les **espaceurs** du Dock, et, 
 make            # construit dist/Docko.app
 make run        # construit puis lance
 make install    # copie dans /Applications
+make zip        # dist/Docko-<version>.zip, prêt à partager
 ```
 
 Le `.app` est signé ad hoc. Pour que « Lancer au démarrage » et le schéma d'URL fonctionnent de manière fiable, installe l'app dans `/Applications` et lance-la au moins une fois.
+
+Pour donner l'app à quelqu'un, passe toujours par `make zip` : l'archive est faite avec `ditto`, qui conserve le bit d'exécution du binaire et la signature. Un zip ou un transfert (cloud, messagerie) qui les perd rend l'app inouvrable, surtout sur Apple Silicon qui refuse tout binaire non signé. Chez le destinataire, la signature ad hoc ne satisfait pas Gatekeeper : la première fois, clic droit › Ouvrir, ou `xattr -dr com.apple.quarantine Docko.app`. Seule la notarisation Apple (compte développeur) évite cette étape.
 
 Au lancement, Docko n'ouvre pas de fenêtre et n'apparaît pas dans le Dock : cherche son icône dans la barre des menus, en haut à droite (sur un MacBook avec encoche, elle peut être masquée si la barre est pleine). Si Hidden Bar est installé, Docko se place de lui-même à droite de son chevron au premier lancement ; avec Bartender ou Ice, déplie la zone cachée puis ⌘-glisse l'icône Docko à droite du séparateur. Pour avoir aussi l'icône et le point « en cours d'exécution » dans le Dock, active « Afficher Docko dans le Dock » dans le menu ou les Réglages. Au tout premier lancement, sans profil, la fenêtre de gestion s'ouvre d'elle-même ; relancer l'app alors qu'elle tourne déjà la rouvre aussi. Docko ne tourne qu'en une seule instance : lancer une autre copie (par exemple `dist/Docko.app` après un `make run`) remplace celle en cours. `make install` arrête l'ancienne version, installe la nouvelle dans `/Applications` et la lance.
 
@@ -76,8 +79,9 @@ Sources/Docko/
   Models.swift                 DockProfile, DockItem
   ManagerView.swift            Fenêtre de gestion (SwiftUI)
   ProfileEditorView.swift      Éditeur d'un profil
-  SettingsView.swift           Réglages (démarrage, nom dans la barre, raccourcis)
-  HotkeyManager.swift          Raccourcis globaux Carbon (déclencheur puis touche)
+  SettingsView.swift           Réglages (démarrage, nom dans la barre, raccourcis), dans la fenêtre de gestion
+  AppCommand.swift             Commandes de l'app auxquelles on peut associer un raccourci
+  HotkeyManager.swift          Raccourcis globaux Carbon (déclencheur puis touche, commandes)
   Shortcut.swift, LoginItemService.swift, ColorHex.swift, Prompts.swift
 Resources/Info.plist           LSUIElement, schéma d'URL
 Makefile                       Assemble le .app
@@ -85,6 +89,6 @@ Makefile                       Assemble le .app
 
 ## Limites connues
 
-- Les raccourcis globaux passent par `RegisterEventHotKey` (Carbon). Pendant les deux secondes qui suivent ⌘D, les touches des profils sont capturées globalement, puis relâchées.
+- Les raccourcis globaux passent par `RegisterEventHotKey` (Carbon). Pendant les deux secondes qui suivent ⌘D, les touches des profils sont capturées globalement, puis relâchées. Les raccourcis de commandes sont enregistrés en permanence ; aucun n'est défini par défaut, un ⌘Q global quitterait Docko depuis n'importe quelle app.
 - Pas d'intégration App Intents : `swift build` n'exécute pas l'extraction de métadonnées d'Xcode, donc les intents ne seraient pas visibles dans Raccourcis. Le schéma d'URL couvre le besoin.
 - Les éléments du Dock d'un type inconnu dans `persistent-apps` sont ignorés à la capture.
