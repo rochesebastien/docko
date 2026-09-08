@@ -287,12 +287,28 @@ private struct SidebarRow: View {
     let profile: DockProfile
     let isActive: Bool
 
+    @State private var hovering = false
+
     var body: some View {
         HStack(spacing: 9) {
             ColorSwatch(hex: profile.colorHex, size: 12)
             Text(profile.name)
                 .lineLimit(1)
             Spacer(minLength: 6)
+            if let key = profile.hotkey {
+                // Icône au repos, combinaison au survol.
+                Group {
+                    if hovering {
+                        Text(key.display)
+                            .font(.caption.monospacedDigit())
+                    } else {
+                        Image(systemName: "keyboard")
+                            .font(.caption)
+                    }
+                }
+                .foregroundStyle(.secondary)
+                .help("Raccourci global : \(key.display)")
+            }
             if isActive {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.caption)
@@ -301,5 +317,7 @@ private struct SidebarRow: View {
             }
         }
         .padding(.vertical, 2)
+        .contentShape(Rectangle())
+        .onHover { hovering = $0 }
     }
 }

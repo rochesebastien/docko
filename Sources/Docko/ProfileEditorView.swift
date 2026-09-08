@@ -16,18 +16,27 @@ struct ProfileEditorView: View {
     private var appCount: Int { profile.items.filter { !$0.isSpacer }.count }
     private var spacerCount: Int { profile.items.filter(\.isSpacer).count }
 
+    @State private var hoveringWallpaper = false
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            header
-            preview
-            dockSettingsSection
-            wallpaperSection
-            items
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    header
+                    preview
+                    dockSettingsSection
+                    items
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 12)
+                .padding(.bottom, 20)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+            Divider()
             footer
+                .padding(.horizontal, 24)
+                .padding(.vertical, 14)
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 12)
-        .padding(.bottom, 20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Theme.canvas)
         .alert("Docko", isPresented: Binding(
@@ -64,14 +73,6 @@ struct ProfileEditorView: View {
 
                 Spacer(minLength: 12)
 
-                if isActive {
-                    Pill(text: "Appliqué", systemImage: "checkmark", style: .success)
-                }
-                if let key = profile.hotkey {
-                    Pill(text: key.display, systemImage: "keyboard", style: .neutral)
-                        .help("Raccourci global de ce profil")
-                }
-
                 Menu {
                     Button("Dupliquer") { onDuplicate() }
                     Button("Remplacer par le Dock actuel…") { confirmReplace = true }
@@ -87,12 +88,13 @@ struct ProfileEditorView: View {
                 .help("Autres actions")
             }
 
-            HStack(spacing: 8) {
+            HStack(alignment: .center, spacing: 8) {
                 customColorChip
                 ForEach(DockProfile.defaultColors, id: \.self) { hex in
                     colorChip(hex)
                 }
                 Spacer()
+                wallpaperTile
             }
         }
     }
@@ -202,52 +204,67 @@ struct ProfileEditorView: View {
 
     // MARK: - Fond d'écran
 
-    private var wallpaperSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            SectionLabel(text: "Fond d'écran")
-            HStack(spacing: 12) {
+    private static let wallpaperTileSize = CGSize(width: 112, height: 64)
+
+    /// Vignette du fond d'écran du profil. Un clic ouvre le menu (choisir, mémoriser, retirer) ;
+    /// sans image, un cadre en pointillés. Pas de texte : l'image parle, le reste est en info-bulle.
+    private var wallpaperTile: some View {
+        Menu {
+            if profile.wallpaperPath != nil {
+                Button("Changer d'image…") { chooseWallpaper() }
+            } else {
+                Button("Choisir une image…") { chooseWallpaper() }
+            }
+            Button("Mémoriser le fond actuel") { captureCurrentWallpaper() }
+            if profile.wallpaperPath != nil {
+                Divider()
+                Button("Retirer le fond d'écran", role: .destructive) { store.removeWallpaper(id: profile.id) }
+            }
+        } label: {
+            ZStack {
                 if let path = profile.wallpaperPath {
-                    WallpaperThumbnail(path: path, size: CGSize(width: 64, height: 40))
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 8) {
-                            Text(URL(fileURLWithPath: path).lastPathComponent)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            if !profile.wallpaperExistsOnDisk {
-                                Pill(text: "Introuvable", systemImage: "exclamationmark.triangle.fill", style: .neutral)
-                                    .help("Image introuvable sur le disque")
-                            }
-                        }
-                        Text("Appliqué avec le profil sur tous les écrans, dans le bureau affiché.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    WallpaperThumbnail(path: path, size: Self.wallpaperTileSize)
+                    if !profile.wallpaperExistsOnDisk {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.title3)
+                            .foregroundStyle(.yellow)
+                            .shadow(radius: 2)
                     }
-                    Spacer(minLength: 8)
-                    Button("Changer…") { chooseWallpaper() }
-                        .help("Choisir une autre image")
-                    Button("Retirer") { store.removeWallpaper(id: profile.id) }
-                        .help("Ce profil ne touchera plus au fond d'écran")
                 } else {
-                    Image(systemName: "photo")
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                        .foregroundStyle(Theme.borderStrong)
+                    Image(systemName: "photo.badge.plus")
                         .font(.title3)
                         .foregroundStyle(.secondary)
-                        .frame(width: 24)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Ce profil ne modifie pas le fond d'écran")
-                        Text("Choisis une image pour qu'elle soit appliquée en même temps que le Dock.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer(minLength: 8)
-                    Button("Mémoriser le fond actuel") { captureCurrentWallpaper() }
-                        .help("Utiliser l'image actuellement affichée sur l'écran principal")
-                    Button("Choisir une image…") { chooseWallpaper() }
+                }
+                if hoveringWallpaper {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(.black.opacity(profile.wallpaperPath == nil ? 0.05 : 0.35))
+                    Image(systemName: "ellipsis.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(.white)
+                        .shadow(radius: 2)
+                        .opacity(profile.wallpaperPath == nil ? 0 : 1)
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .card()
+            .frame(width: Self.wallpaperTileSize.width, height: Self.wallpaperTileSize.height)
+            .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .onHover { hoveringWallpaper = $0 }
+        .help(wallpaperHelp)
+    }
+
+    private var wallpaperHelp: String {
+        guard profile.wallpaperPath != nil else {
+            return "Fond d'écran : aucun. Clique pour en choisir un, il sera appliqué avec le profil."
+        }
+        return profile.wallpaperExistsOnDisk
+            ? "Fond d'écran appliqué avec le profil, sur tous les écrans. Clique pour changer ou retirer."
+            : "Image introuvable sur le disque. Clique pour en choisir une autre."
     }
 
     // MARK: - Éléments
@@ -271,12 +288,16 @@ struct ProfileEditorView: View {
                             Button("Remplacer par le Dock actuel…") { confirmReplace = true }
                         }
                     }
+                    .frame(height: 220)
                 } else {
+                    // Hauteur fixée au nombre de lignes : c'est l'éditeur entier qui défile,
+                    // pas la liste, sinon deux zones de défilement s'emboîtent.
                     List {
                         ForEach(profile.items) { item in
                             DockItemRow(item: item) {
                                 profile.items.removeAll { $0.id == item.id }
                             }
+                            .frame(height: DockItemRow.contentHeight)
                             .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 10))
                         }
                         .onMove { profile.items.move(fromOffsets: $0, toOffset: $1) }
@@ -284,6 +305,8 @@ struct ProfileEditorView: View {
                     }
                     .listStyle(.plain)
                     .scrollContentBackground(.hidden)
+                    .scrollDisabled(true)
+                    .frame(height: CGFloat(profile.items.count) * (DockItemRow.contentHeight + 8))
                 }
 
                 Divider()
@@ -319,7 +342,7 @@ struct ProfileEditorView: View {
             }
             .card()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Pied
@@ -504,6 +527,9 @@ struct DockPreview: View {
 // MARK: - Ligne
 
 struct DockItemRow: View {
+    /// Hauteur du contenu d'une ligne, hors insets de liste ; sert à dimensionner la liste.
+    static let contentHeight: CGFloat = 34
+
     let item: DockItem
     let onRemove: () -> Void
 
