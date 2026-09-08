@@ -204,67 +204,83 @@ struct ProfileEditorView: View {
 
     // MARK: - Fond d'écran
 
-    private static let wallpaperTileSize = CGSize(width: 112, height: 64)
+    private static let wallpaperTileSize = CGSize(width: 128, height: 72)
+    private static let wallpaperTileShape = RoundedRectangle(cornerRadius: 8, style: .continuous)
 
-    /// Vignette du fond d'écran du profil. Un clic ouvre le menu (choisir, mémoriser, retirer) ;
-    /// sans image, un cadre en pointillés. Pas de texte : l'image parle, le reste est en info-bulle.
+    /// Vignette du fond d'écran du profil. Au survol : voile, curseur main et boutons
+    /// (choisir, mémoriser le fond actuel, retirer). Sans image, un cadre en pointillés
+    /// qui dit quoi faire. Pas de nom de fichier : l'image parle, le reste est en info-bulle.
     private var wallpaperTile: some View {
-        Menu {
-            if profile.wallpaperPath != nil {
-                Button("Changer d'image…") { chooseWallpaper() }
-            } else {
-                Button("Choisir une image…") { chooseWallpaper() }
-            }
-            Button("Mémoriser le fond actuel") { captureCurrentWallpaper() }
-            if profile.wallpaperPath != nil {
-                Divider()
-                Button("Retirer le fond d'écran", role: .destructive) { store.removeWallpaper(id: profile.id) }
-            }
-        } label: {
-            ZStack {
-                if let path = profile.wallpaperPath {
-                    WallpaperThumbnail(path: path, size: Self.wallpaperTileSize)
-                    if !profile.wallpaperExistsOnDisk {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.title3)
-                            .foregroundStyle(.yellow)
-                            .shadow(radius: 2)
-                    }
-                } else {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                        .foregroundStyle(Theme.borderStrong)
-                    Image(systemName: "photo.badge.plus")
+        ZStack {
+            if let path = profile.wallpaperPath {
+                WallpaperThumbnail(path: path, size: Self.wallpaperTileSize)
+                if !profile.wallpaperExistsOnDisk && !hoveringWallpaper {
+                    Image(systemName: "exclamationmark.triangle.fill")
                         .font(.title3)
-                        .foregroundStyle(.secondary)
-                }
-                if hoveringWallpaper {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(.black.opacity(profile.wallpaperPath == nil ? 0.05 : 0.35))
-                    Image(systemName: "ellipsis.circle.fill")
-                        .font(.title2)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.yellow)
                         .shadow(radius: 2)
-                        .opacity(profile.wallpaperPath == nil ? 0 : 1)
+                }
+            } else {
+                Self.wallpaperTileShape
+                    .fill(Theme.surfaceRaised)
+                Self.wallpaperTileShape
+                    .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                    .foregroundStyle(Theme.borderStrong)
+                if !hoveringWallpaper {
+                    VStack(spacing: 3) {
+                        Image(systemName: "photo")
+                            .font(.title3)
+                        Text("Fond d'écran")
+                            .font(.caption2)
+                    }
+                    .foregroundStyle(.secondary)
                 }
             }
-            .frame(width: Self.wallpaperTileSize.width, height: Self.wallpaperTileSize.height)
-            .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+
+            if hoveringWallpaper {
+                Self.wallpaperTileShape
+                    .fill(.black.opacity(profile.wallpaperPath == nil ? 0.15 : 0.5))
+                HStack(spacing: 6) {
+                    wallpaperAction("photo.on.rectangle.angled", help: profile.wallpaperPath == nil ? "Choisir une image…" : "Changer d'image…") {
+                        chooseWallpaper()
+                    }
+                    wallpaperAction("camera.viewfinder", help: "Mémoriser le fond d'écran actuel") {
+                        captureCurrentWallpaper()
+                    }
+                    if profile.wallpaperPath != nil {
+                        wallpaperAction("trash", help: "Retirer : le profil ne touchera plus au fond d'écran") {
+                            store.removeWallpaper(id: profile.id)
+                        }
+                    }
+                }
+            }
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
+        .frame(width: Self.wallpaperTileSize.width, height: Self.wallpaperTileSize.height)
+        .clipShape(Self.wallpaperTileShape)
+        .overlay(Self.wallpaperTileShape.strokeBorder(hoveringWallpaper ? Color.accentColor : Theme.border))
         .fixedSize()
-        .onHover { hoveringWallpaper = $0 }
-        .help(wallpaperHelp)
+        .contentShape(Self.wallpaperTileShape)
+        .onHover { inside in
+            hoveringWallpaper = inside
+            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+        }
+        .animation(.easeOut(duration: 0.12), value: hoveringWallpaper)
+        .help(profile.wallpaperPath == nil
+              ? "Aucun fond d'écran. Survole pour en choisir un, il sera appliqué avec le profil."
+              : "Fond d'écran appliqué avec le profil, sur tous les écrans.")
     }
 
-    private var wallpaperHelp: String {
-        guard profile.wallpaperPath != nil else {
-            return "Fond d'écran : aucun. Clique pour en choisir un, il sera appliqué avec le profil."
+    /// Bouton rond blanc sur le voile de la vignette.
+    private func wallpaperAction(_ symbol: String, help: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.black.opacity(0.8))
+                .frame(width: 26, height: 26)
+                .background(.white.opacity(0.92), in: Circle())
         }
-        return profile.wallpaperExistsOnDisk
-            ? "Fond d'écran appliqué avec le profil, sur tous les écrans. Clique pour changer ou retirer."
-            : "Image introuvable sur le disque. Clique pour en choisir une autre."
+        .buttonStyle(.plain)
+        .help(help)
     }
 
     // MARK: - Éléments
@@ -453,6 +469,8 @@ struct WallpaperThumbnail: View {
                 Image(nsImage: image)
                     .resizable()
                     .scaledToFill()
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
             } else {
                 Image(systemName: "photo")
                     .foregroundStyle(.tertiary)
