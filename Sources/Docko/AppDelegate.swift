@@ -193,6 +193,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 item.image = NSColor.dotImage(hex: profile.colorHex)
                 item.representedObject = profile.id
                 item.state = profile.id == store.activeProfileID ? .on : .off
+                // Même règle que dans la fenêtre : un profil vide ne s'applique pas, il viderait le Dock.
+                item.isEnabled = !profile.items.isEmpty
+                if profile.items.isEmpty { item.toolTip = "Profil vide : ajoute des apps avant de l'appliquer." }
                 menu.addItem(item)
             }
         }
