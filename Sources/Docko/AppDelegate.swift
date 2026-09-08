@@ -117,10 +117,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .openManager: showManager()
         case .captureCurrentDock: captureCurrentDock()
         case .updateActiveProfile: updateActiveFromCurrentDock()
-        case .applyNextProfile:
-            do { try store.applyNext() } catch { Prompts.showError(error, title: "Profil suivant") }
         case .openDockSettings: openDockSettings()
         case .restartDock: restartDock()
+        case .openApp: showManager()
         case .quit: NSApp.terminate(nil)
         }
     }
@@ -210,10 +209,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         update.isEnabled = store.activeProfile != nil
         menu.addItem(update)
 
-        let next = menuItem(for: .applyNextProfile)
-        next.isEnabled = store.profiles.count > 1
-        menu.addItem(next)
-
         menu.addItem(.separator())
 
         let settingsMenu = NSMenu(title: "Réglages")
@@ -259,6 +254,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(.separator())
 
+        menu.addItem(menuItem(for: .openApp))
         menu.addItem(menuItem(for: .quit))
     }
 

@@ -7,7 +7,7 @@ Un profil enregistre les **apps épinglées** et les **espaceurs** du Dock, et, 
 ## Fonctionnalités
 
 - Icône dans la barre des menus, sans icône dans le Dock. Un clic sur un profil l'applique.
-- Raccourcis clavier globaux, depuis n'importe quelle app : un par profil pour l'appliquer, et un par commande du menu (gérer les profils, enregistrer le Dock, profil suivant, relancer le Dock, quitter…). Chaque raccourci est une combinaison complète (⌃⌥1, ⌘⇧D…) que tu choisis ; aucun n'est défini par défaut. Tout se règle dans la fenêtre de gestion, bouton « Réglages » en bas de la barre latérale.
+- Raccourcis clavier globaux, depuis n'importe quelle app : un par profil pour l'appliquer, et un par commande du menu (gérer les profils, enregistrer le Dock, relancer le Dock, ouvrir Docko, quitter…). Chaque raccourci est une combinaison complète (⌃⌥1, ⌘⇧D…) que tu choisis ; aucun n'est défini par défaut. Tout se règle dans la fenêtre de gestion, bouton « Réglages » en bas de la barre latérale.
 - Enregistrer le Dock actuel comme nouveau profil (apps et réglages), ou mettre à jour le profil actif depuis le Dock actuel. Les réglages du Dock peuvent être retirés d'un profil pour qu'il ne change que les apps.
 - Fenêtre de gestion : renommer, colorer, réordonner les apps par glisser-déposer, ajouter des apps ou des espaceurs, supprimer, dupliquer.
 - Fond d'écran optionnel par profil : choisis une image (ou mémorise le fond actuel), elle est appliquée à tous les écrans en même temps que le Dock. Limite macOS : seul le bureau affiché de chaque écran change, pas les autres Spaces ; les fonds dynamiques du système (aériens, couleurs) ne sont pas des images et ne peuvent pas être mémorisés.

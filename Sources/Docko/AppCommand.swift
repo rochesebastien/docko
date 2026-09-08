@@ -6,9 +6,9 @@ enum AppCommand: String, CaseIterable, Codable, Identifiable {
     case openManager
     case captureCurrentDock
     case updateActiveProfile
-    case applyNextProfile
     case openDockSettings
     case restartDock
+    case openApp
     case quit
 
     var id: String { rawValue }
@@ -19,9 +19,9 @@ enum AppCommand: String, CaseIterable, Codable, Identifiable {
         case .openManager: return "Gérer les profils…"
         case .captureCurrentDock: return "Enregistrer le Dock actuel comme nouveau profil…"
         case .updateActiveProfile: return "Mettre à jour le profil actif depuis le Dock actuel"
-        case .applyNextProfile: return "Profil suivant"
         case .openDockSettings: return "Réglages du Dock…"
         case .restartDock: return "Relancer le Dock"
+        case .openApp: return "Ouvrir Docko"
         case .quit: return "Quitter Docko"
         }
     }
@@ -32,9 +32,9 @@ enum AppCommand: String, CaseIterable, Codable, Identifiable {
         case .openManager: return "Gérer les profils"
         case .captureCurrentDock: return "Enregistrer le Dock actuel"
         case .updateActiveProfile: return "Mettre à jour le profil actif"
-        case .applyNextProfile: return "Profil suivant"
         case .openDockSettings: return "Réglages du Dock"
         case .restartDock: return "Relancer le Dock"
+        case .openApp: return "Ouvrir Docko"
         case .quit: return "Quitter Docko"
         }
     }
@@ -44,9 +44,9 @@ enum AppCommand: String, CaseIterable, Codable, Identifiable {
         case .openManager: return "rectangle.stack"
         case .captureCurrentDock: return "plus.circle"
         case .updateActiveProfile: return "arrow.triangle.2.circlepath"
-        case .applyNextProfile: return "arrow.right.circle"
         case .openDockSettings: return "dock.rectangle"
         case .restartDock: return "arrow.clockwise"
+        case .openApp: return "macwindow"
         case .quit: return "xmark.square"
         }
     }
