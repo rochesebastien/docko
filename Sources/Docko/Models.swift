@@ -131,6 +131,8 @@ struct DockProfile: Codable, Identifiable, Hashable {
     var items: [DockItem] = []
     /// nil = le profil ne touche pas aux réglages du Dock.
     var dockSettings: DockSettings? = nil
+    /// Dernière capture des réglages du Dock dans ce profil.
+    var dockSettingsUpdatedAt: Date? = nil
     /// Chemin de l'image appliquée comme fond d'écran avec le profil. nil = le profil n'y touche pas.
     var wallpaperPath: String? = nil
     var createdAt: Date = Date()

@@ -153,7 +153,8 @@ final class ProfileStore: ObservableObject {
             name: uniqueName(name),
             colorHex: DockProfile.nextColor(after: profiles),
             items: DockService.currentItems(),
-            dockSettings: DockService.currentSettings()
+            dockSettings: DockService.currentSettings(),
+            dockSettingsUpdatedAt: Date()
         )
         profiles.append(profile)
         activeProfileID = profile.id
@@ -173,6 +174,7 @@ final class ProfileStore: ObservableObject {
         profiles[index].items = DockService.currentItems()
         if profiles[index].dockSettings != nil {
             profiles[index].dockSettings = DockService.currentSettings()
+            profiles[index].dockSettingsUpdatedAt = Date()
         }
         activeProfileID = id
     }
@@ -181,12 +183,14 @@ final class ProfileStore: ObservableObject {
     func captureDockSettings(id: UUID) {
         guard let index = profiles.firstIndex(where: { $0.id == id }) else { return }
         profiles[index].dockSettings = DockService.currentSettings()
+        profiles[index].dockSettingsUpdatedAt = Date()
     }
 
     /// Le profil cesse de toucher aux réglages du Dock.
     func removeDockSettings(id: UUID) {
         guard let index = profiles.firstIndex(where: { $0.id == id }) else { return }
         profiles[index].dockSettings = nil
+        profiles[index].dockSettingsUpdatedAt = nil
     }
 
     /// Associe l'image au profil (copiée dans le dossier de Docko si nécessaire).

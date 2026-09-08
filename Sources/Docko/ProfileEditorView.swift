@@ -17,6 +17,8 @@ struct ProfileEditorView: View {
     private var spacerCount: Int { profile.items.filter(\.isSpacer).count }
 
     @State private var hoveringWallpaper = false
+    /// Réglages actuels du Dock, relus à l'apparition et quand l'app repasse au premier plan.
+    @State private var currentDockSettings: DockSettings?
     /// Libellé du bouton de la vignette sous la souris, affiché sous les boutons.
     @State private var hoveredWallpaperAction: String?
 
@@ -41,6 +43,10 @@ struct ProfileEditorView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Theme.canvas)
+        .onAppear { currentDockSettings = DockService.currentSettings() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            currentDockSettings = DockService.currentSettings()
+        }
         .alert("Docko", isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
@@ -166,6 +172,12 @@ struct ProfileEditorView: View {
 
     // MARK: - Réglages du Dock
 
+    /// Vrai si le Dock actuel diffère des réglages mémorisés dans le profil.
+    private var dockSettingsOutdated: Bool {
+        guard let saved = profile.dockSettings, let current = currentDockSettings else { return false }
+        return saved != current
+    }
+
     private var dockSettingsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionLabel(text: "Réglages du Dock")
@@ -176,11 +188,22 @@ struct ProfileEditorView: View {
                     .frame(width: 24)
                 VStack(alignment: .leading, spacing: 2) {
                     if let settings = profile.dockSettings {
-                        Text(settings.summary)
-                            .lineLimit(2)
-                        Text("Appliqués avec le profil : taille, agrandissement, masquage, position, effets…")
+                        HStack(spacing: 8) {
+                            if let date = profile.dockSettingsUpdatedAt {
+                                Text("Mis à jour le \(date.formatted(date: .abbreviated, time: .shortened))")
+                            } else {
+                                Text("Réglages mémorisés")
+                            }
+                            if dockSettingsOutdated {
+                                Pill(text: "Modifications détectées", systemImage: "arrow.triangle.2.circlepath", style: .accent)
+                            }
+                        }
+                        Text(dockSettingsOutdated
+                             ? "Le Dock actuel ne correspond plus à ce profil. Mets-le à jour pour reprendre ses réglages."
+                             : "Taille, agrandissement, masquage, position, effets… appliqués avec le profil.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .help(settings.summary)
                     } else {
                         Text("Ce profil ne modifie pas les réglages du Dock")
                         Text("Mémorise-les pour que ce profil restaure aussi la taille, l'agrandissement, le masquage, la position…")
@@ -190,8 +213,15 @@ struct ProfileEditorView: View {
                 }
                 Spacer(minLength: 8)
                 if profile.dockSettings != nil {
-                    Button("Mettre à jour") { store.captureDockSettings(id: profile.id) }
-                        .help("Remplacer par les réglages actuels du Dock")
+                    if dockSettingsOutdated {
+                        Button("Mettre à jour") { store.captureDockSettings(id: profile.id) }
+                            .buttonStyle(.borderedProminent)
+                            .help("Remplacer par les réglages actuels du Dock")
+                    } else {
+                        Button("Mettre à jour") { store.captureDockSettings(id: profile.id) }
+                            .disabled(true)
+                            .help("Le profil a déjà les réglages actuels du Dock")
+                    }
                     Button("Retirer") { store.removeDockSettings(id: profile.id) }
                         .help("Ce profil ne touchera plus aux réglages du Dock")
                 } else {
